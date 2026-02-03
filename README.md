@@ -31,13 +31,13 @@ Se você deseja apenas utilizar o programa sem instalar o Python:
 1. Clone o repositório:
    ```bash
    git clone [https://github.com/SEU_USUARIO/WatchdogApp.git](https://github.com/SEU_USUARIO/WatchdogApp.git)
-
+   ```
 2. Instale as dependências:
-
-Bash
+```Bash
 pip install -r requirements.txt
+```
 3. Execute o script principal:
-
-Bash
+```Bash
 python main.py
+```
 Desenvolvido por DanBenites
