@@ -1,0 +1,40 @@
+import json
+import os
+from ..domain.models import AppConfig
+
+CONFIG_FILE = "config_watchdog.json"
+
+class PersistenceRepository:
+    @staticmethod
+    def salvar(config: AppConfig):
+        dados = {
+            "configuracoes": {"intervalo": config.intervalo, 
+                              "dias_log": config.dias_log, 
+                              "intervalo_heartbeat": config.intervalo_heartbeat,
+                              "iniciar_com_windows": config.iniciar_com_windows,
+                              "minimizar_para_tray": config.minimizar_para_tray
+                              },
+            "processos_monitorados": config.processos
+        }
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(dados, f, indent=4)
+
+    @staticmethod
+    def carregar() -> AppConfig:
+        if not os.path.exists(CONFIG_FILE):
+            return AppConfig()
+        
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+                return AppConfig(
+                    intervalo=dados["configuracoes"].get("intervalo", 5),
+                    dias_log=dados["configuracoes"].get("dias_log", 7),
+                    intervalo_heartbeat=dados["configuracoes"].get("intervalo_heartbeat", 2),
+                    iniciar_com_windows=dados["configuracoes"].get("iniciar_com_windows", False),
+                    minimizar_para_tray=dados["configuracoes"].get("minimizar_para_tray", False),
+                    processos=dados.get("processos_monitorados", {})
+                )
+        except Exception as e:
+            print(f"Erro ao ler config: {e}")
+            return AppConfig()

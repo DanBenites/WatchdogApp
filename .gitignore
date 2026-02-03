@@ -1,0 +1,21 @@
+# Python temporários
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller e Executáveis
+build/
+dist/
+*.spec
+
+# Ambiente virtual
+venv/
+.venv/
+
+# Configurações locais e Logs
+config_watchdog.json
+logs_diarios/
+assets/cache_icones/
+
+# VS Code
+.vscode/
