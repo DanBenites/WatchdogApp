@@ -29,9 +29,9 @@ Se você deseja apenas utilizar o programa sem instalar o Python:
 ## 👨‍💻 Como rodar o código (Desenvolvedores)
 
 1. Clone o repositório:
-   ```bash
-   git clone [https://github.com/SEU_USUARIO/WatchdogApp.git](https://github.com/SEU_USUARIO/WatchdogApp.git)
-   ```
+```bash
+git clone [https://github.com/SEU_USUARIO/WatchdogApp.git](https://github.com/SEU_USUARIO/WatchdogApp.git)
+```
 2. Instale as dependências:
 ```Bash
 pip install -r requirements.txt
