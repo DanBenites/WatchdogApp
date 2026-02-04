@@ -22,7 +22,7 @@ O **WatchdogApp** é um monitor de processos inteligente desenvolvido em Python.
 ## 📦 Como usar o Executável
 
 Se você deseja apenas utilizar o programa sem instalar o Python:
-1. Vá até a seção [Releases](link-para-sua-release) deste repositório.
+1. Vá até a seção [Releases](release) deste repositório.
 2. Baixe o arquivo `WatchdogApp.exe`.
 3. Execute o programa (não requer instalação).
 
