@@ -3,10 +3,14 @@ import glob
 from datetime import datetime, timedelta
 
 class LogManager:
-    def __init__(self, log_dir="logs_diarios"):
-        self.log_dir = log_dir
+    def __init__(self):
+        app_data= os.getenv('APPDATA')
+        self.log_dir = os.path.join(app_data, "WatchdogApp", "logs")
         if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
+            try:
+                os.makedirs(self.log_dir)
+            except OSError:
+                pass
 
     def escrever(self, mensagem):
         """ Escreve a mensagem no arquivo do dia atual de forma segura (append) """

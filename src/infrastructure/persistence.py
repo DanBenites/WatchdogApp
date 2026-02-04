@@ -2,7 +2,16 @@ import json
 import os
 from ..domain.models import AppConfig
 
-CONFIG_FILE = "config_watchdog.json"
+app_data = os.getenv('APPDATA')
+pasta_config = os.path.join(app_data, "WatchdogApp")
+
+# Garante que a pasta existe antes de definir o arquivo
+if not os.path.exists(pasta_config):
+    try:
+        os.makedirs(pasta_config)
+    except: pass
+
+CONFIG_FILE = os.path.join(pasta_config, "config_watchdog.json")
 
 class PersistenceRepository:
     @staticmethod

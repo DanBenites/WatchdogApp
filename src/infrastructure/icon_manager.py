@@ -64,13 +64,17 @@ class IconeManager:
         "solitaire.exe": "Microsoft.MicrosoftSolitaireCollection" # Microsoft Solitaire
     }
 
-    def __init__(self, cache_dir="assets/cache_icones"):
-        self.cache_dir = cache_dir
-        self.memoria_cache = {} 
+    def __init__(self):
+        app_data = os.getenv('APPDATA')
+        self.cache_dir = os.path.join(app_data, "WatchdogApp", "cache_icons")
+        self.memoria_cache = {}
         
         if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
-        
+            try:
+                os.makedirs(self.cache_dir)
+            except Exception as e:
+                print(f"Erro ao criar pasta de cache: {e}")
+                
         self._icons = {} # Inicializa o dicionário de ícones do sistema
         
         # Mapeamento dos ícones internos do app
