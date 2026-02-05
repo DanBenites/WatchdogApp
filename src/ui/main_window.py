@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import customtkinter as ctk
 import threading
 from tkinter import messagebox
@@ -145,6 +146,8 @@ class WatchdogApp(ctk.CTk):
         except Exception as e:
             print(f"Erro ao carregar ícone: {e}")
         
+        self.iniciado_pelo_sistema = "--startup" in sys.argv
+        
         self.bind("<Unmap>", self._ao_minimizar)
         self.tray_icon = None
 
@@ -234,13 +237,69 @@ class WatchdogApp(ctk.CTk):
         # Função para fechar a splash e abrir o app
         def fechar_splash():
             splash.destroy()
-            self.deiconify() # Mostra a janela principal
             
-            # Executa a listagem inicial de processos após a splash sumir
-            self.after(200, self.listar_processos_ativos)
+            # LÓGICA INTELIGENTE DE INICIALIZAÇÃO
+            
+            # Cenário 1: Configuração de Tray DESLIGADA
+            # Se o usuário não quer usar Tray, SEMPRE abre a janela.
+            if not self.config_data.minimizar_para_tray:
+                self.deiconify()
+                
+            # Cenário 2: Configuração de Tray LIGADA
+            else:
+                # Só vai direto para o Tray se foi o Windows que iniciou (--startup)
+                if self.iniciado_pelo_sistema:
+                    self._criar_tray_icon()
+                    self.registrar_log("ℹ️ Iniciado silenciosamente junto com o Windows.")
+                else:
+                    # Se foi o usuário clicando, mostra a janela (mesmo com tray ativado)
+                    self.deiconify()
 
-        # Define quanto tempo a imagem fica na tela (ex: 3000ms = 3 segundos)
+            self.after(200, self.listar_processos_ativos)
+            
+            # --- GATILHO DA AUTOMACAO ---
+            # Só roda automação se a config permitir E (opcionalmente) se foi boot do sistema
+            # (Mantendo sua lógica atual de sempre verificar se deve retomar)
+            if self.config_data.persistir_monitoramento and self.config_data.monitoramento_ativo_no_fechamento:
+                self.registrar_log(f"⏳ Aguardando {self.config_data.delay_inicializacao}s para retomar monitoramento...")
+                self.after(self.config_data.delay_inicializacao * 1000, self._automacao_inicio_monitoramento)
+
         self.after(1500, fechar_splash)
+    
+    def _automacao_inicio_monitoramento(self):
+        """ Executado automaticamente após o delay inicial """
+        if self.engine.rodando: return
+
+        self.registrar_log("🤖 Iniciando automação de retomada...")
+        
+        # 1. Verifica ausentes
+        lista_alvo = list(self.config_data.processos)
+        ausentes = SystemUtils.verificar_processos_ausentes(lista_alvo)
+        
+        if ausentes:
+            acao = self.config_data.acao_ao_iniciar
+            self.registrar_log(f"⚠️ Processos ausentes detectados: {len(ausentes)}. Ação: {acao.upper()}")
+
+            if acao == "forcar":
+                 self._forcar_inicializacao(ausentes)
+                 # Pequeno delay extra para dar tempo dos processos abrirem antes de monitorar
+                 self.after(2000, lambda: self._iniciar_engine_silencioso())
+                 return
+            
+            elif acao == "ignorar":
+                 # Segue o baile, monitora o que tem (ou avisa que está parado)
+                 pass
+        
+        self._iniciar_engine_silencioso()
+
+    def _iniciar_engine_silencioso(self):
+        """ Inicia o motor sem passar pelos diálogos de UI """
+        self.engine.iniciar()
+        
+        # Atualiza UI
+        self.btn_start.configure(image=self.icon_manager._icons.get("stop"), text="PARAR MONITORAMENTO", height=32, fg_color="orange")
+        self._definir_estado_edicao("disabled")
+        self.registrar_log("✅ Monitoramento retomado automaticamente.")
 
     def _setup_layout(self):
         self.tabview = ctk.CTkTabview(self)
@@ -469,6 +528,7 @@ class WatchdogApp(ctk.CTk):
                         self.registrar_log("❗ Iniciar monitoramento mesmo com processos ausentes") 
 
             self.engine.iniciar()
+            self.config_data.monitoramento_ativo_no_fechamento = True
             PersistenceRepository.salvar(self.config_data)
             
             self.btn_start.configure(image=self.icon_manager._icons.get("stop"), text="PARAR MONITORAMENTO", height=32, fg_color="orange")
@@ -477,7 +537,8 @@ class WatchdogApp(ctk.CTk):
         else:
             # PARAR
             self.engine.parar()
-            
+            self.config_data.monitoramento_ativo_no_fechamento = False
+            PersistenceRepository.salvar(self.config_data)
             self.btn_start.configure(image=self.icon_manager._icons.get("play"), text="INICIAR MONITORAMENTO", height=32, fg_color="#1f538d")
             self._definir_estado_edicao("normal")
     
@@ -685,6 +746,44 @@ class WatchdogApp(ctk.CTk):
             text_color="gray"
         ).pack(anchor="w")
 
+        # --- SEÇÃO DE AUTOMAÇÃO ---
+        ctk.CTkLabel(frame_config, text="Automação de Reinício", font=("Arial", 16, "bold")).pack(pady=(0, 5), anchor="w")
+
+        # 1. Switch Principal
+        self.switch_persistir = ctk.CTkSwitch(
+            frame_config, text="Retomar monitoramento ao iniciar app", 
+            command=self._salvar_automacao, onvalue=True, offvalue=False, button_color="#1f538d"
+        )
+        if self.config_data.persistir_monitoramento: self.switch_persistir.select()
+        else: self.switch_persistir.deselect()
+        self.switch_persistir.pack(anchor="w", pady=5)
+
+        # 2. Delay (Slider ou OptionMenu)
+        frame_delay = ctk.CTkFrame(frame_config, fg_color="transparent")
+        frame_delay.pack(fill="x", anchor="w")
+        
+        ctk.CTkLabel(frame_delay, text="Aguardar (Delay):").pack(side="left", padx=(0,10))
+        self.combo_delay = ctk.CTkOptionMenu(
+            frame_delay, width=100,
+            values=["5s", "10s", "30s", "60s", "120s"],
+            command=self._salvar_automacao
+        )
+        self.combo_delay.set(f"{self.config_data.delay_inicializacao}s")
+        self.combo_delay.pack(side="left")
+        
+        ctk.CTkLabel(frame_delay, text="antes de retomar.", text_color="gray", font=("Arial", 11)).pack(side="left", padx=10)
+
+        # 3. Ação para Processos Ausentes
+        ctk.CTkLabel(frame_config, text="Se houver processos fechados ao retomar:", font=("Arial", 12)).pack(anchor="w", pady=(10,0))
+        
+        self.radio_var = ctk.StringVar(value=self.config_data.acao_ao_iniciar)
+        
+        r1 = ctk.CTkRadioButton(frame_config, text="Ignorar (Monitorar apenas os ativos)", variable=self.radio_var, value="ignorar", command=self._salvar_automacao)
+        r1.pack(anchor="w", pady=2)
+        
+        r2 = ctk.CTkRadioButton(frame_config, text="Tentar Iniciar (Forçar abertura)", variable=self.radio_var, value="forcar", command=self._salvar_automacao)
+        r2.pack(anchor="w", pady=2)
+
         ctk.CTkFrame(frame_config, height=2, fg_color="#e0e0e0").pack(fill="x", pady=5)
 
         ctk.CTkLabel(frame_config, text="Ajustes do Monitor", font=("Arial", 16, "bold")).pack(pady=(0, 5), anchor="w")
@@ -875,3 +974,14 @@ class WatchdogApp(ctk.CTk):
             self.tray_icon.stop()
         self.engine.parar() # Para o loop de monitoramento
         self.quit()
+    
+    def _salvar_automacao(self, _=None):
+        self.config_data.persistir_monitoramento = self.switch_persistir.get()
+        
+        # Tratamento do texto "10s" -> 10
+        val_delay = self.combo_delay.get().replace("s", "")
+        self.config_data.delay_inicializacao = int(val_delay)
+        
+        self.config_data.acao_ao_iniciar = self.radio_var.get()
+        
+        PersistenceRepository.salvar(self.config_data)

@@ -101,12 +101,12 @@ class SystemUtils:
         # Lógica para pegar o caminho correto (seja .py ou .exe compilado)
         if getattr(sys, 'frozen', False):
             # Se for executável (PyInstaller)
-            app_path = f'"{sys.executable}"'
+            app_path = f'"{sys.executable}" --startup'
         else:
             # Se for script Python rodando
             script_path = os.path.abspath(sys.argv[0])
             # Executa: "python.exe" "caminho/do/main.py"
-            app_path = f'"{sys.executable}" "{script_path}"'
+            app_path = f'"{sys.executable}" "{script_path}" --startup'
 
         try:
             # Abre a chave do registro
