@@ -128,10 +128,14 @@ class SystemUtils:
             print(f"Erro ao alterar registro do Windows: {e}")
             return False
     
+    @staticmethod
     def resource_path(relative_path):
-        """ Retorna o caminho absoluto para recursos, funcionando no PyInstaller """
+        """ Retorna o caminho absoluto para recursos, funcionando no PyInstaller e Script """
         try:
             base_path = sys._MEIPASS
         except Exception:
-            base_path = os.path.abspath(".")
+            # Se for Script Python (Dev) ou Executável sem MEIPASS - Como no ato de Reinicialização do Windows
+            # Pega o diretório onde está o arquivo main.py (ou o .exe), e NÃO o diretório atual do cmd
+            base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+
         return os.path.join(base_path, relative_path)
