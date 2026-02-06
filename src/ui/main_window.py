@@ -39,10 +39,6 @@ class WatchdogApp(ctk.CTk):
         # 3. Limpeza Logs
         threading.Thread(target=self.log_manager.limpar_antigos, args=(self.config_data.dias_log,), daemon=True).start()
 
-        # 4. Iniciar Splash (Esconde janela)
-        self.withdraw()
-        self.splash = SplashScreen(self, self.config_data, self._pos_splash_callback)
-        self.splash.exibir()
         
         # 5. Construir Interface (Abas)
         self._construir_abas()
@@ -50,6 +46,14 @@ class WatchdogApp(ctk.CTk):
         # 6. Carregar Logs Anteriores
         historico = self.log_manager.ler_conteudo_dia()
         if historico: self.tab_log.adicionar_linha(historico)
+
+        # 4. Iniciar Splash (Esconde janela)
+        self.withdraw()
+        if self.iniciado_pelo_sistema:
+            self._pos_splash_callback() 
+        else:
+            self.splash = SplashScreen(self, self.config_data, self._pos_splash_callback)
+            self.splash.exibir()
 
     def _configurar_icone_janela(self):
         try:
