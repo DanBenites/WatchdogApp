@@ -21,176 +21,200 @@ class ConfigTab(ctk.CTkFrame):
         self._setup_ui()
 
     def _setup_ui(self):
-        frame_config = ctk.CTkFrame(self, fg_color="transparent")
-        frame_config.pack(fill="both", expand=True, padx=20, pady=20)
+        # ===============================================================
+        # BLOCO 1: SISTEMA (Inicialização e Tray)
+        # ===============================================================
+        self.frame_sys = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_sys.pack(fill="x", padx=10, pady=(10, 5))
 
+        # Título da Seção
+        ctk.CTkLabel(self.frame_sys, text="SISTEMA", font=("Arial", 14, "bold"), text_color="#1f538d").pack(anchor="w", padx=5)
         
-        # --- Configuração 1: Inicialização com Windows ---
-        ctk.CTkLabel(frame_config, text="Sistema", font=("Arial", 16, "bold")).pack(pady=(0, 5), anchor="w")
-        
+        # Container Grid (2 Colunas)
+        grid_sys = ctk.CTkFrame(self.frame_sys, fg_color=["#e8e8e8", "#2b2b2b"]) # Cor de fundo sutil
+        grid_sys.pack(fill="x", pady=5)
+        grid_sys.grid_columnconfigure((0, 1), weight=1) # Colunas com peso igual
+
+        # --- Coluna 0: Inicializar com Windows ---
+        self.mode_button_startup = "disabled"
         self.switch_startup = ctk.CTkSwitch(
-            frame_config,
-            text="Iniciar junto com o Windows",
-            command=self._alterar_startup,
-            onvalue=True,
-            offvalue=False,
-            button_color="#1f538d",
+            grid_sys, text="Iniciar com o Windows", font=("Arial", 12, "bold"),
+            command=self._alterar_startup, onvalue=True, offvalue=False, button_color="#1f538d",
         )
-        
-        # Carrega o estado atual
-        if self.config_data.iniciar_com_windows:
-            self.switch_startup.select()
-        else:
-            self.switch_startup.deselect()
-            
-        self.switch_startup.pack(anchor="w", pady=5)
-        
+        if self.config_data.iniciar_com_windows: self.switch_startup.select()
+        self.switch_startup.grid(row=0, column=0, sticky="w", padx=20, pady=15)
+        # Legenda na Linha 1
         ctk.CTkLabel(
-            frame_config, 
+            grid_sys, 
             text="Adiciona o programa ao registro do sistema para abrir automaticamente ao ligar o PC.", 
             font=("Arial", 11), 
-            text_color="gray"
-        ).pack(anchor="w")
+            text_color="gray",
+            wraplength=350,
+            justify="left",
+            anchor="n"
+        ).grid(row=1, column=0, sticky="w", padx=20)
 
+        # --- Coluna 1: Bandeja (Tray) ---
         self.switch_tray = ctk.CTkSwitch(
-            frame_config,
-            text="Minimizar para a Bandeja (Tray)",
-            command=self._alterar_tray_mode,
-            onvalue=True,
+            grid_sys, text="Minimizar para Bandeja", font=("Arial", 12, "bold"), 
+            command=self._alterar_tray_mode, onvalue=True, offvalue=False
+        )
+        if self.config_data.minimizar_para_tray: self.switch_tray.select()
+        self.switch_tray.grid(row=0, column=1, sticky="w", padx=20, pady=15)
+        ctk.CTkLabel(
+            grid_sys, 
+            text="Ao minimizar, o programa ficará oculto perto do relógio do Windows.", 
+            font=("Arial", 11), 
+            text_color="gray",
+            wraplength=350,
+            justify="left",
+            anchor="n"
+        ).grid(row=1, column=1, sticky="w", padx=20)
+
+        # Separador visual
+        ctk.CTkFrame(grid_sys, height=2, fg_color="gray").grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+
+        
+        # # Frame Container Principal da Automação
+        f_auto = ctk.CTkFrame(grid_sys, fg_color="transparent")
+        f_auto.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=20, pady=(10, 15))
+
+        f_linha_controles = ctk.CTkFrame(f_auto, fg_color="transparent")
+        f_linha_controles.pack(fill="x", anchor="w")
+
+        # Switch Retomar Monitoramento
+        self.switch_persistir = ctk.CTkSwitch(
+            f_linha_controles, 
+            text="Retomar Monitoramento",
+            font=("Arial", 12, "bold"),
+            command=self._salvar_automacao, 
+            onvalue=True, 
             offvalue=False,
             button_color="#1f538d",
         )
-        # Carrega estado salvo
-        if self.config_data.minimizar_para_tray:
-            self.switch_tray.select()
-        else:
-            self.switch_tray.deselect()
-            
-        self.switch_tray.pack(anchor="w", pady=5)
-        
-        ctk.CTkLabel(
-            frame_config, 
-            text="Ao minimizar, o programa ficará oculto perto do relógio do Windows.", 
-            font=("Arial", 11), 
-            text_color="gray"
-        ).pack(anchor="w")
-
-        # --- SEÇÃO DE AUTOMAÇÃO ---
-        ctk.CTkLabel(frame_config, text="Automação de Reinício", font=("Arial", 16, "bold")).pack(pady=(0, 5), anchor="w")
-
-        # 1. Switch Principal
-        self.switch_persistir = ctk.CTkSwitch(
-            frame_config, text="Retomar monitoramento ao iniciar app", 
-            command=self._salvar_automacao, onvalue=True, offvalue=False, button_color="#1f538d"
-        )
         if self.config_data.persistir_monitoramento: self.switch_persistir.select()
-        else: self.switch_persistir.deselect()
-        self.switch_persistir.pack(anchor="w", pady=5)
+        self.switch_persistir.pack(side="left")
 
-        # 2. Delay (Slider ou OptionMenu)
-        frame_delay = ctk.CTkFrame(frame_config, fg_color="transparent")
-        frame_delay.pack(fill="x", anchor="w")
-        
-        ctk.CTkLabel(frame_delay, text="Aguardar (Delay):").pack(side="left", padx=(0,10))
+        # Delay 
+        self.lbl_delay = ctk.CTkLabel(f_linha_controles, text="Delay:", font=("Arial", 12, "bold"))
+        self.lbl_delay.pack(side="left", padx=(20, 5))
         self.combo_delay = ctk.CTkOptionMenu(
-            frame_delay, width=100,
-            values=["5s", "10s", "30s", "60s", "120s"],
+            f_linha_controles, 
+            width=70, 
+            values=["5s", "10s", "30s", "60s"], 
             command=self._salvar_automacao
         )
         self.combo_delay.set(f"{self.config_data.delay_inicializacao}s")
         self.combo_delay.pack(side="left")
-        
-        ctk.CTkLabel(frame_delay, text="antes de retomar.", text_color="gray", font=("Arial", 11)).pack(side="left", padx=10)
 
-        # 3. Ação para Processos Ausentes
-        ctk.CTkLabel(frame_config, text="Se houver processos fechados ao retomar:", font=("Arial", 12)).pack(anchor="w", pady=(10,0))
-        
-        self.radio_var = ctk.StringVar(value=self.config_data.acao_ao_iniciar)
-        
-        r1 = ctk.CTkRadioButton(frame_config, text="Ignorar (Monitorar apenas os ativos)", variable=self.radio_var, value="ignorar", command=self._salvar_automacao)
-        r1.pack(anchor="w", pady=2)
-        
-        r2 = ctk.CTkRadioButton(frame_config, text="Tentar Iniciar (Forçar abertura)", variable=self.radio_var, value="forcar", command=self._salvar_automacao)
-        r2.pack(anchor="w", pady=2)
-
-        ctk.CTkFrame(frame_config, height=2, fg_color="#e0e0e0").pack(fill="x", pady=5)
-
-        ctk.CTkLabel(frame_config, text="Ajustes do Monitor", font=("Arial", 16, "bold")).pack(pady=(0, 5), anchor="w")
-        
-        # --- Configuração 2: Ciclo de Verificação ---
-        ctk.CTkLabel(frame_config, text="Ciclo de Verificação:", font=("Arial", 13)).pack(anchor="w")
-
-        self.combo_intervalo = ctk.CTkOptionMenu(
-            frame_config,
-            values=list(self.opcoes_tempo.keys()),
-            command=self._alterar_intervalo,
-            width=200
-        )
-        
-        tempo_atual = self.config_data.intervalo
-        texto_inicial = "5 segundos"
-        for texto, seg in self.opcoes_tempo.items():
-            if seg == tempo_atual:
-                texto_inicial = texto
-                break
-        self.combo_intervalo.set(texto_inicial)
-        self.combo_intervalo.pack(anchor="w", pady=10)
-
+        # Linha Inferior: Descrição
         ctk.CTkLabel(
-            frame_config, 
+            f_auto,
+            text="Ao reiniciar o Windows, retoma o monitoramento após o tempo definido no Delay (aguarda os processos iniciarem).", 
+            font=("Arial", 11), 
+            text_color="gray",
+            wraplength=450, # Quebra o texto se for muito longo
+            justify="left"
+        ).pack(anchor="w", pady=(4, 0))
+
+        # Condição para Processos Ausentes
+        f_sub_auto = ctk.CTkFrame(grid_sys, fg_color="transparent")
+        f_sub_auto.grid(row=3, column=1, sticky="nsew", padx=15)
+        
+        self.lbl_sub_auto = ctk.CTkLabel(f_sub_auto, text="Se processos ausentes:", font=("Arial", 12, "bold"))
+        self.lbl_sub_auto.pack(anchor="w", pady=(5,0))
+        self.radio_var = ctk.StringVar(value=self.config_data.acao_ao_iniciar)
+        ctk.CTkRadioButton(f_sub_auto, text="Ignorar", variable=self.radio_var, value="ignorar", command=self._salvar_automacao).pack(anchor="w", pady=(0,2))
+        ctk.CTkRadioButton(f_sub_auto, text="Forçar Início", variable=self.radio_var, value="forcar", command=self._salvar_automacao).pack(anchor="w")
+
+        if not self.config_data.iniciar_com_windows:
+            self.switch_persistir.configure(state="disabled")
+            self.combo_delay.configure(state="disabled")
+            self.lbl_delay.configure(text_color="#999999")
+            self.lbl_sub_auto.configure(text_color="#999999")
+            self.radio_var.set(value="ignorar")
+            
+        # ===============================================================
+        # BLOCO 2: MONITOR (Comportamento do Motor e Automação)
+        # ===============================================================
+        self.frame_mon = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_mon.pack(fill="both", expand=True, padx=10, pady=5)
+
+        ctk.CTkLabel(self.frame_mon, text="MONITOR", font=("Arial", 14, "bold"), text_color="#1f538d").pack(anchor="w", padx=5)
+
+        # Container Grid (2 Colunas)
+        grid_mon = ctk.CTkFrame(self.frame_mon, fg_color=["#e8e8e8", "#2b2b2b"])
+        grid_mon.pack(fill="both", expand=True, pady=5)
+        grid_mon.grid_columnconfigure((0, 1), weight=1)
+
+        # --- LINHA 1: Intervalos Básicos ---
+        
+        # Coluna 0: Ciclo de Verificação
+        f_ciclo = ctk.CTkFrame(grid_mon, fg_color="transparent")
+        f_ciclo.grid(row=0, column=0, sticky="nsew", padx=15, pady=10)
+        ctk.CTkLabel(f_ciclo, text="Ciclo de Verificação:", font=("Arial", 12, "bold")).pack(anchor="w")
+
+        self.combo_intervalo = ctk.CTkOptionMenu(f_ciclo, values=list(self.opcoes_tempo.keys()), command=self._alterar_intervalo)
+        self._set_combo_inicial(self.combo_intervalo, self.config_data.intervalo, self.opcoes_tempo)
+        self.combo_intervalo.pack(anchor="w", pady=5)
+        ctk.CTkLabel(
+            f_ciclo, 
             text="Intervalo para realização de verificação dos status dos programas adicionados a lista.", 
             font=("Arial", 11), 
-            text_color="gray"
+            text_color="gray",
+            wraplength=450,
+            justify="left",
+            anchor="n"
         ).pack(anchor="w")
 
-        # --- Configuração 3: Histórico de Logs ---
-        ctk.CTkLabel(frame_config, text="Histórico de Logs (Dias):", font=("Arial", 13)).pack(anchor="w")
+        # Coluna 1: Heartbeat (Rotina)
+        f_heart = ctk.CTkFrame(grid_mon, fg_color="transparent")
+        f_heart.grid(row=0, column=1, sticky="nsew", padx=15, pady=10)
+        ctk.CTkLabel(f_heart, text="Relatório de Rotina:", font=("Arial", 12, "bold")).pack(anchor="w")
         
-        # Label que mostra o valor atual dinamicamente
-        self.lbl_dias_valor = ctk.CTkLabel(frame_config, text=f"{self.config_data.dias_log} dias", font=("Arial", 12, "bold"), text_color="#1f538d")
-        self.lbl_dias_valor.pack(anchor="w", padx=2)
-
-        # Slider (1 a 30 dias)
-        self.slider_dias = ctk.CTkSlider(
-            frame_config,
-            from_=1,
-            to=30,
-            number_of_steps=29, # Garante que ande de 1 em 1
-            width=300,
-            command=self._alterar_dias_log
-        )
-        self.slider_dias.set(self.config_data.dias_log)
-        self.slider_dias.pack(anchor="w", pady=5)
-        
-        ctk.CTkLabel(
-            frame_config, 
-            text="Arquivos de log mais antigos que o limite serão apagados automaticamente.", 
-            font=("Arial", 11), 
-            text_color="gray"
-        ).pack(anchor="w")
-    
-        # --- Configuração 4: Checagem de Rotina (Heartbeat) ---
-        ctk.CTkLabel(frame_config, text="Relatório de Rotina (Check-up):", font=("Arial", 13)).pack(anchor="w", pady=(15, 0))
-        
-        self.combo_heartbeat = ctk.CTkOptionMenu(
-            frame_config,
-            values=[f"{h} horas" for h in [2, 4, 6, 8, 12, 24, 48]],
-            command=self._alterar_heartbeat,
-            width=200
-        )
-        
-        # Define o valor atual
-        atual = self.config_data.intervalo_heartbeat
-        self.combo_heartbeat.set(f"{atual} horas")
+        self.combo_heartbeat = ctk.CTkOptionMenu(f_heart, values=[f"{h} horas" for h in [2, 4, 6, 8, 12, 24]], command=self._alterar_heartbeat)
+        self.combo_heartbeat.set(f"{self.config_data.intervalo_heartbeat} horas")
         self.combo_heartbeat.pack(anchor="w", pady=5)
 
         ctk.CTkLabel(
-            frame_config, 
+            f_heart, 
             text="Gera um registro no log confirmando que os programas estão rodando, mesmo se não houver falhas.", 
             font=("Arial", 11), 
-            text_color="gray"
+            text_color="gray",
+            wraplength=450,
+            justify="left"
         ).pack(anchor="w")
 
+        
+        # --- LINHA 2: Logs e Automação ---
+
+        # Coluna 0: Histórico de Logs
+        f_logs = ctk.CTkFrame(grid_mon, fg_color="transparent")
+        f_logs.grid(row=2, column=0, sticky="nsew", padx=15, pady=10)
+        
+        self.lbl_dias = ctk.CTkLabel(f_logs, text=f"Histórico de Logs: {self.config_data.dias_log} dias", font=("Arial", 12, "bold"))
+        self.lbl_dias.pack(anchor="w")
+        
+        self.slider_dias = ctk.CTkSlider(f_logs, from_=1, to=30, number_of_steps=29, command=self._alterar_dias_log)
+        self.slider_dias.set(self.config_data.dias_log)
+        self.slider_dias.pack(fill="x", pady=5)
+        ctk.CTkLabel(
+            f_logs,
+            text="Arquivos de log mais antigos que o limite serão apagados automaticamente.", 
+            font=("Arial", 11), 
+            text_color="gray",
+            wraplength=450,
+            justify="left"
+        ).pack(anchor="w")
+
+    def _set_combo_inicial(self, combo, valor_atual, opcoes):
+        texto = "5 segundos"
+        for k, v in opcoes.items():
+            if v == valor_atual:
+                texto = k
+                break
+        combo.set(texto)
+    
     def _alterar_intervalo(self, escolha):
         novo_tempo = self.opcoes_tempo.get(escolha, 5)
         self.config_data.intervalo = novo_tempo
@@ -231,18 +255,44 @@ class ConfigTab(ctk.CTkFrame):
             self.persistence.salvar(self.config_data)
             
             status = "ATIVADA" if ativar else "DESATIVADA"
-            self.log(f"ℹ️ Configuração: Inicialização com windows {status}.")
+            self.log(f"ℹ️ Configuração: Inicialização com Windows {status}.")
+
+            if hasattr(self, 'switch_persistir'):
+                if ativar:
+                    # Se ativou o Windows, libera o botão de retomar
+                    self.switch_persistir.configure(state="normal")
+                    self.combo_delay.configure(state="normal")
+                    self.lbl_delay.configure(text_color="black")
+                    self.lbl_sub_auto.configure(text_color="black")
+                else:
+                    # Se desativou o Windows, bloqueia e desmarca o retomar
+                    self.switch_persistir.deselect()
+                    self.switch_persistir.configure(state="disabled")
+                    self.combo_delay.configure(state="disabled")
+                    self.lbl_delay.configure(text_color="#999999")
+                    self.lbl_sub_auto.configure(text_color="#999999")
+                    self.radio_var.set(value="ignorar")
+                    
+                    # Atualiza a config interna para refletir que foi desmarcado
+                    self.config_data.persistir_monitoramento = False
+                    self.persistence.salvar(self.config_data)             
+
         else:
             # Se falhou (permissão, antivirus, etc), reverte o switch visualmente
             messagebox.showerror("Erro", "Falha ao alterar registro do Windows.\nTente executar como Administrador.")
             if ativar: self.switch_startup.deselect()
             else: self.switch_startup.select()
+        
+        if status == "ATIVADA":
+            self.mode_button_startup = "normal"
 
     def _alterar_tray_mode(self):
         """ Salva a preferência do usuário """
         valor = self.switch_tray.get() # 1 ou 0
         self.config_data.minimizar_para_tray = bool(valor)
         self.persistence.salvar(self.config_data)
+        minimize = "ATIVADO" if bool(valor) else "DESATIVADO"
+        self.log(f"ℹ️ Configuração: Minimimizar para Bandeja {minimize}")
 
     # --- LÓGICA DO TRAY ---
     def _ao_minimizar(self, event):
@@ -305,12 +355,30 @@ class ConfigTab(ctk.CTkFrame):
         self.quit()
     
     def _salvar_automacao(self, _=None):
-        self.config_data.persistir_monitoramento = self.switch_persistir.get()
-        
-        # Tratamento do texto "10s" -> 10
-        val_delay = self.combo_delay.get().replace("s", "")
-        self.config_data.delay_inicializacao = int(val_delay)
-        
-        self.config_data.acao_ao_iniciar = self.radio_var.get()
-        
-        self.persistence.salvar(self.config_data)
+        changed = False
+
+        novo_persistir = bool(self.switch_persistir.get())
+        if self.config_data.persistir_monitoramento != novo_persistir:
+            self.config_data.persistir_monitoramento = novo_persistir
+            condicao = "ATIVADO" if novo_persistir else "DESATIVADO"
+            self.log(f"ℹ️ Configuração: Retomar Monitoramento {condicao}")
+            changed = True
+
+        try:
+            novo_delay = int(self.combo_delay.get().replace("s", ""))
+            if self.config_data.delay_inicializacao != novo_delay:
+                self.config_data.delay_inicializacao = novo_delay
+                self.log(f"ℹ️ Configuração: Delay alterado para {novo_delay}s")
+                changed = True
+        except ValueError:
+            pass
+
+        nova_acao = self.radio_var.get()
+        if self.config_data.acao_ao_iniciar != nova_acao:
+            self.config_data.acao_ao_iniciar = nova_acao
+            traducao = "Forçar Início" if nova_acao == "forcar" else "Ignorar"
+            self.log(f"ℹ️ Configuração: Ação para ausentes alterada para '{traducao}'")
+            changed = True
+
+        if changed:
+            self.persistence.salvar(self.config_data)

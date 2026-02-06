@@ -1,3 +1,4 @@
+import os
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 from datetime import datetime
@@ -17,6 +18,7 @@ class LogTab(ctk.CTkFrame):
 
         ctk.CTkButton(frame_tools, text="Salvar em Arquivo", width=140, fg_color="#1f538d", command=self._salvar_log).pack(side="right", padx=(0, 5))
         ctk.CTkButton(frame_tools, text="Copiar Tudo", width=120, fg_color="gray", command=self._copiar_log).pack(side="right", padx=5)
+        ctk.CTkButton(frame_tools, text="Abrir Pasta", width=120, fg_color="green", command=self._abrir_pasta_logs).pack(side="right", padx=5)
         ctk.CTkButton(frame_tools, text="Limpar", width=100, fg_color="#c62828", hover_color="#b71c1c", command=self._limpar_log).pack(side="left")
 
     def adicionar_linha(self, texto):
@@ -47,3 +49,13 @@ class LogTab(ctk.CTkFrame):
         self.log_text.configure(state="normal")
         self.log_text.delete("1.0", "end")
         self.log_text.configure(state="disabled")
+    
+    def _abrir_pasta_logs(self):
+        try:
+            path = self.log_manager.log_dir
+            if os.path.exists(path):
+                os.startfile(path)
+            else:
+                messagebox.showerror("Erro", f"Pasta não encontrada:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao abrir pasta: {e}")
