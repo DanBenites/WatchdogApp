@@ -21,7 +21,11 @@ class PersistenceRepository:
                               "dias_log": config.dias_log, 
                               "intervalo_heartbeat": config.intervalo_heartbeat,
                               "iniciar_com_windows": config.iniciar_com_windows,
-                              "minimizar_para_tray": config.minimizar_para_tray
+                              "minimizar_para_tray": config.minimizar_para_tray,
+                              "persistir_monitoramento": config.persistir_monitoramento,
+                              "monitoramento_ativo_no_fechamento": config.monitoramento_ativo_no_fechamento,
+                              "delay_inicializacao": config.delay_inicializacao,
+                              "acao_ao_iniciar": config.acao_ao_iniciar
                               },
             "processos_monitorados": config.processos
         }
@@ -42,6 +46,10 @@ class PersistenceRepository:
                     intervalo_heartbeat=dados["configuracoes"].get("intervalo_heartbeat", 2),
                     iniciar_com_windows=dados["configuracoes"].get("iniciar_com_windows", False),
                     minimizar_para_tray=dados["configuracoes"].get("minimizar_para_tray", False),
+                    persistir_monitoramento=dados["configuracoes"].get("persistir_monitoramento", False),
+                    monitoramento_ativo_no_fechamento=dados["configuracoes"].get("monitoramento_ativo_no_fechamento", False),
+                    delay_inicializacao=dados["configuracoes"].get("delay_inicializacao", 20),
+                    acao_ao_iniciar=dados["configuracoes"].get("acao_ao_iniciar", "ignorar"),
                     processos=dados.get("processos_monitorados", {})
                 )
         except Exception as e:

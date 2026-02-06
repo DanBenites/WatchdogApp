@@ -101,12 +101,12 @@ class SystemUtils:
         # Lógica para pegar o caminho correto (seja .py ou .exe compilado)
         if getattr(sys, 'frozen', False):
             # Se for executável (PyInstaller)
-            app_path = f'"{sys.executable}"'
+            app_path = f'"{sys.executable}" --startup'
         else:
             # Se for script Python rodando
             script_path = os.path.abspath(sys.argv[0])
             # Executa: "python.exe" "caminho/do/main.py"
-            app_path = f'"{sys.executable}" "{script_path}"'
+            app_path = f'"{sys.executable}" "{script_path}" --startup'
 
         try:
             # Abre a chave do registro
@@ -128,10 +128,14 @@ class SystemUtils:
             print(f"Erro ao alterar registro do Windows: {e}")
             return False
     
+    @staticmethod
     def resource_path(relative_path):
-        """ Retorna o caminho absoluto para recursos, funcionando no PyInstaller """
+        """ Retorna o caminho absoluto para recursos, funcionando no PyInstaller e Script """
         try:
             base_path = sys._MEIPASS
         except Exception:
-            base_path = os.path.abspath(".")
+            # Se for Script Python (Dev) ou Executável sem MEIPASS - Como no ato de Reinicialização do Windows
+            # Pega o diretório onde está o arquivo main.py (ou o .exe), e NÃO o diretório atual do cmd
+            base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+
         return os.path.join(base_path, relative_path)
