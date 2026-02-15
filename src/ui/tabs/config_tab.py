@@ -8,8 +8,10 @@ import pystray
 from ...infrastructure.system_utils import SystemUtils
 
 class ConfigTab(ctk.CTkFrame):
-    def __init__(self, parent, config_data, persistence_repo, log_callback, log_manager):
+    # CORREÇÃO: Adicionado 'engine' aos argumentos
+    def __init__(self, parent, engine, config_data, persistence_repo, log_callback, log_manager):
         super().__init__(parent, fg_color="transparent")
+        self.engine = engine # CORREÇÃO: Armazenando a referência do engine
         self.config_data = config_data
         self.persistence = persistence_repo
         self.log = log_callback
@@ -224,7 +226,7 @@ class ConfigTab(ctk.CTkFrame):
     def _alterar_dias_log(self, valor):
         """ Callback do Slider """
         dias = int(valor)
-        self.lbl_dias_valor.configure(text=f"{dias} dias") # Atualiza label visual
+        self.lbl_dias.configure(text=f"Histórico de Logs: {dias} dias")
         
         # Só salva se mudou (o slider dispara muitos eventos enquanto arrasta)
         if dias != self.config_data.dias_log:
