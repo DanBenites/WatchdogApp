@@ -5,4 +5,5 @@ class AppColors:
     WHITE = "#FFFFFF"          # Default
     BRIGHT_SNOW = "#FAFAFA"    # Background
     NIGHT = "#111111"          # Text
+    GREEN = "#008000"          
     TRANSPARENT = "transparent"

@@ -90,7 +90,7 @@ class IconeManager:
             if os.path.exists(path):
                 img = Image.open(path)
                 # Criando o objeto CTkImage para ser usado nos botões
-                self._icons[name] = ctk.CTkImage(light_image=img, dark_image=img, size=(20, 20))
+                self._icons[name] = ctk.CTkImage(light_image=img, dark_image=img, size=(16, 16))
             else:
                 print(f"Aviso: Ícone não encontrado em {path}")
                 self._icons[name] = None

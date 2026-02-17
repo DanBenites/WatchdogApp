@@ -24,10 +24,10 @@ class AccountTab(ctk.CTkFrame):
         # 2. Container Principal (Card)
         self.container = ctk.CTkFrame(
             self, 
-            fg_color="white", 
+            fg_color=AppColors.WHITE, 
             border_color=AppColors.PLATINUM, 
             border_width=2, 
-            corner_radius=10
+            corner_radius=8
         )
         self.container.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0,10))
         
@@ -36,7 +36,7 @@ class AccountTab(ctk.CTkFrame):
         self.container.grid_rowconfigure(0, weight=1)
 
         # --- LADO ESQUERDO: Inputs ---
-        self.frame_inputs = ctk.CTkFrame(self.container, fg_color="transparent")
+        self.frame_inputs = ctk.CTkFrame(self.container, fg_color=AppColors.TRANSPARENT)
         self.frame_inputs.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         
         
@@ -51,11 +51,11 @@ class AccountTab(ctk.CTkFrame):
         
         ctk.CTkLabel(self.frame_inputs, text="Informe sua chave de acesso para liberar o app.", font=("Arial", 10, "normal"), text_color=AppColors.NIGHT).pack(anchor="w", pady=(0,10))
 
-        self.btn_login = ctk.CTkButton(self.frame_inputs, text="Confirmar", height=35, fg_color=AppColors.DUSK_BLUE, font=("Arial", 12, "bold"), text_color=AppColors.WHITE)
+        self.btn_login = ctk.CTkButton(self.frame_inputs, text="Confirmar", height=35, fg_color=AppColors.DUSK_BLUE, font=("Arial", 12), text_color=AppColors.WHITE)
         self.btn_login.pack(fill="x", pady=(0, 10))
 
         # --- LADO DIREITO: Texto ---
-        self.frame_info = ctk.CTkFrame(self.container, fg_color="transparent")
+        self.frame_info = ctk.CTkFrame(self.container, fg_color=AppColors.TRANSPARENT)
         self.frame_info.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
         ctk.CTkLabel(
@@ -128,11 +128,11 @@ class AccountTab(ctk.CTkFrame):
             fg_color="white", 
             border_color=AppColors.PLATINUM, 
             border_width=2, 
-            corner_radius=10
+            corner_radius=8
         )
         self.data_account.grid(row=2, column=0, sticky="new", padx=10, pady=(0, 10))
 
-        self.frame_data_account = ctk.CTkFrame(self.data_account, fg_color="transparent")
+        self.frame_data_account = ctk.CTkFrame(self.data_account, fg_color=AppColors.TRANSPARENT)
         self.frame_data_account.pack(fill="both", expand=True, padx=15, pady=10)
         
         # Configuração das Colunas:
