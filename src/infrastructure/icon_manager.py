@@ -82,7 +82,11 @@ class IconeManager:
             "play": SystemUtils.resource_path(os.path.join("assets", "icons", "play.png")),
             "stop": SystemUtils.resource_path(os.path.join("assets", "icons", "stop.png")),
             "add": SystemUtils.resource_path(os.path.join("assets", "icons", "add.png")),
-            "refresh": SystemUtils.resource_path(os.path.join("assets", "icons", "refresh.png"))
+            "refresh": SystemUtils.resource_path(os.path.join("assets", "icons", "refresh.png")),
+            "close_console": SystemUtils.resource_path(os.path.join("assets", "icons", "close_console.png")),
+            "copy": SystemUtils.resource_path(os.path.join("assets", "icons", "copy.png")),
+            "folder": SystemUtils.resource_path(os.path.join("assets", "icons", "folder.png")),
+            "file_save": SystemUtils.resource_path(os.path.join("assets", "icons", "file_save.png")),
         }
 
         # Carrega cada ícone se o arquivo existir
