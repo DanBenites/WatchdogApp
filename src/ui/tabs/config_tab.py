@@ -5,13 +5,15 @@ from tkinter import messagebox
 from PIL import Image
 from pystray import MenuItem as item
 import pystray
+
+from ..colors import AppColors
 from ...infrastructure.system_utils import SystemUtils
 
 class ConfigTab(ctk.CTkFrame):
     # CORREÇÃO: Adicionado 'engine' aos argumentos
     def __init__(self, parent, engine, config_data, persistence_repo, log_callback, log_manager):
-        super().__init__(parent, fg_color="transparent")
-        self.engine = engine # CORREÇÃO: Armazenando a referência do engine
+        super().__init__(parent, fg_color=AppColors.BRIGHT_SNOW)
+        self.engine = engine
         self.config_data = config_data
         self.persistence = persistence_repo
         self.log = log_callback
@@ -26,83 +28,138 @@ class ConfigTab(ctk.CTkFrame):
         # ===============================================================
         # BLOCO 1: SISTEMA (Inicialização e Tray)
         # ===============================================================
-        self.frame_sys = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_sys.pack(fill="x", padx=10, pady=(10, 5))
+        self.frame_sys = ctk.CTkFrame(self, fg_color=AppColors.TRANSPARENT)
+        self.frame_sys.pack(fill="x", padx=10, pady=10)
 
         # Título da Seção
-        ctk.CTkLabel(self.frame_sys, text="SISTEMA", font=("Arial", 14, "bold"), text_color="#1f538d").pack(anchor="w", padx=5)
+        ctk.CTkLabel(self.frame_sys, text="Sistema", font=("Arial", 16, "bold"), text_color=AppColors.CHARCOAL_BLUE).pack(anchor="w")
         
-        # Container Grid (2 Colunas)
-        grid_sys = ctk.CTkFrame(self.frame_sys, fg_color=["#e8e8e8", "#2b2b2b"]) # Cor de fundo sutil
-        grid_sys.pack(fill="x", pady=5)
-        grid_sys.grid_columnconfigure((0, 1), weight=1) # Colunas com peso igual
+        # Container
+        grid_sys = ctk.CTkFrame(self.frame_sys,
+            fg_color= AppColors.WHITE,
+            border_color= AppColors.PLATINUM,
+            border_width=2,
+            corner_radius=8
+            )
+        grid_sys.pack(fill="x")
+
+        # Divide o Container em 2 colunas de tamanhos sempre iguais.
+        grid_sys.grid_columnconfigure((0,1), weight=1, uniform="sys_group")
 
         # --- Coluna 0: Inicializar com Windows ---
         self.mode_button_startup = "disabled"
         self.switch_startup = ctk.CTkSwitch(
-            grid_sys, text="Iniciar com o Windows", font=("Arial", 12, "bold"),
-            command=self._alterar_startup, onvalue=True, offvalue=False, button_color="#1f538d",
+            grid_sys, 
+            text="Iniciar com o Windows", 
+            font=("Arial", 12, "bold"),
+            text_color=AppColors.NIGHT,
+            command=self._alterar_startup, 
+            onvalue=True,
+            offvalue=False,
+            
+            button_color=AppColors.DUSK_BLUE,
+            button_hover_color=AppColors.CHARCOAL_BLUE,
+            progress_color=AppColors.BRILLIANT_AZURE, 
+            fg_color=AppColors.PLATINUM,
+
+            switch_width=38,
+            switch_height=20,
+            corner_radius=20,
+            border_width=0,
         )
         if self.config_data.iniciar_com_windows: self.switch_startup.select()
-        self.switch_startup.grid(row=0, column=0, sticky="w", padx=20, pady=15)
-        # Legenda na Linha 1
-        ctk.CTkLabel(
+        self.switch_startup.grid(row=0, column=0, sticky="w", padx=10, pady=10)
+
+        lbl_startup = ctk.CTkLabel(
             grid_sys, 
             text="Adiciona o programa ao registro do sistema para abrir automaticamente ao ligar o PC.", 
-            font=("Arial", 11), 
+            font=("Arial", 11),
             text_color="gray",
-            wraplength=350,
             justify="left",
-            anchor="n"
-        ).grid(row=1, column=0, sticky="w", padx=20)
+            anchor="nw",
+        )
+        lbl_startup.grid(row=1, column=0, sticky="ew", padx=10)
+        grid_sys.bind("<Configure>", lambda e: lbl_startup.configure(wraplength=grid_sys.winfo_width()//2 - 10))
 
         # --- Coluna 1: Bandeja (Tray) ---
         self.switch_tray = ctk.CTkSwitch(
-            grid_sys, text="Minimizar para Bandeja", font=("Arial", 12, "bold"), 
-            command=self._alterar_tray_mode, onvalue=True, offvalue=False
+            grid_sys,
+            text="Minimizar para Bandeja",
+            font=("Arial", 12, "bold"),
+            text_color=AppColors.NIGHT,
+            command=self._alterar_tray_mode,
+            onvalue=True,
+            offvalue=False,
+
+            button_color=AppColors.DUSK_BLUE,
+            button_hover_color=AppColors.CHARCOAL_BLUE,
+            progress_color=AppColors.BRILLIANT_AZURE, 
+            fg_color=AppColors.PLATINUM,
+
+            switch_width=38,
+            switch_height=20,
+            corner_radius=20,
+            border_width=0,
         )
         if self.config_data.minimizar_para_tray: self.switch_tray.select()
-        self.switch_tray.grid(row=0, column=1, sticky="w", padx=20, pady=15)
-        ctk.CTkLabel(
+        self.switch_tray.grid(row=0, column=1, sticky="w", padx=10, pady=10)
+
+        lbl_tray = ctk.CTkLabel(
             grid_sys, 
             text="Ao minimizar, o programa ficará oculto perto do relógio do Windows.", 
             font=("Arial", 11), 
             text_color="gray",
             wraplength=350,
             justify="left",
-            anchor="n"
-        ).grid(row=1, column=1, sticky="w", padx=20)
+            anchor="nw",
+        )
+        lbl_tray.grid(row=1, column=1, sticky="we", padx=10)
+        grid_sys.bind("<Configure>", lambda e: lbl_tray.configure(wraplength=grid_sys.winfo_width()//2 - 10))
 
         # Separador visual
-        ctk.CTkFrame(grid_sys, height=2, fg_color="gray").grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+        ctk.CTkFrame(grid_sys, height=2, fg_color=AppColors.PLATINUM).grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
 
         
-        # # Frame Container Principal da Automação
+        # Frame Container Principal da Automação
         f_auto = ctk.CTkFrame(grid_sys, fg_color="transparent")
-        f_auto.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=20, pady=(10, 15))
+        f_auto.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 10))
 
         f_linha_controles = ctk.CTkFrame(f_auto, fg_color="transparent")
         f_linha_controles.pack(fill="x", anchor="w")
 
-        # Switch Retomar Monitoramento
         self.switch_persistir = ctk.CTkSwitch(
             f_linha_controles, 
             text="Retomar Monitoramento",
             font=("Arial", 12, "bold"),
+            text_color=AppColors.NIGHT,
             command=self._salvar_automacao, 
             onvalue=True, 
             offvalue=False,
-            button_color="#1f538d",
+            
+            button_color=AppColors.DUSK_BLUE,
+            button_hover_color=AppColors.CHARCOAL_BLUE,
+            progress_color=AppColors.BRILLIANT_AZURE, 
+            fg_color=AppColors.PLATINUM,
+
+            switch_width=38,
+            switch_height=20,
+            corner_radius=20,
+            border_width=0,
         )
         if self.config_data.persistir_monitoramento: self.switch_persistir.select()
         self.switch_persistir.pack(side="left")
 
         # Delay 
-        self.lbl_delay = ctk.CTkLabel(f_linha_controles, text="Delay:", font=("Arial", 12, "bold"))
+        self.lbl_delay = ctk.CTkLabel(f_linha_controles,
+            text="Delay:",
+            font=("Arial", 12, "bold"),
+            text_color=AppColors.NIGHT)
         self.lbl_delay.pack(side="left", padx=(20, 5))
+
         self.combo_delay = ctk.CTkOptionMenu(
             f_linha_controles, 
-            width=70, 
+            width=54,
+            height=22,
             values=["5s", "10s", "30s", "60s"], 
             command=self._salvar_automacao
         )
@@ -110,24 +167,40 @@ class ConfigTab(ctk.CTkFrame):
         self.combo_delay.pack(side="left")
 
         # Linha Inferior: Descrição
-        ctk.CTkLabel(
+        lbl_persistir = ctk.CTkLabel(
             f_auto,
             text="Ao reiniciar o Windows, retoma o monitoramento após o tempo definido no Delay (aguarda os processos iniciarem).", 
             font=("Arial", 11), 
             text_color="gray",
-            wraplength=450, # Quebra o texto se for muito longo
-            justify="left"
-        ).pack(anchor="w", pady=(4, 0))
+            justify="left",
+            anchor="nw"
+        )
+        lbl_persistir.pack(fill="x", pady=(10,0))
+        grid_sys.bind("<Configure>", lambda e: lbl_persistir.configure(wraplength=grid_sys.winfo_width()//2 - 10))
 
         # Condição para Processos Ausentes
         f_sub_auto = ctk.CTkFrame(grid_sys, fg_color="transparent")
-        f_sub_auto.grid(row=3, column=1, sticky="nsew", padx=15)
+        f_sub_auto.grid(row=3, column=1, sticky="w", padx=10, pady=(0,10))
         
-        self.lbl_sub_auto = ctk.CTkLabel(f_sub_auto, text="Se processos ausentes:", font=("Arial", 12, "bold"))
-        self.lbl_sub_auto.pack(anchor="w", pady=(5,0))
+        self.lbl_sub_auto = ctk.CTkLabel(f_sub_auto,
+            text="Se processos ausentes:",
+            font=("Arial", 12, "bold"),
+            text_color=AppColors.CHARCOAL_BLUE)
+        self.lbl_sub_auto.pack(anchor="w")
+
         self.radio_var = ctk.StringVar(value=self.config_data.acao_ao_iniciar)
-        ctk.CTkRadioButton(f_sub_auto, text="Ignorar", variable=self.radio_var, value="ignorar", command=self._salvar_automacao).pack(anchor="w", pady=(0,2))
-        ctk.CTkRadioButton(f_sub_auto, text="Forçar Início", variable=self.radio_var, value="forcar", command=self._salvar_automacao).pack(anchor="w")
+        ctk.CTkRadioButton(f_sub_auto, text="Ignorar", 
+            variable=self.radio_var,
+            value="ignorar",
+            height=18,
+            command=self._salvar_automacao).pack(anchor="w", pady=(0,2))
+        
+        ctk.CTkRadioButton(f_sub_auto,
+            text="Forçar Início",
+            variable=self.radio_var,
+            value="forcar",
+            height=18,
+            command=self._salvar_automacao).pack(anchor="w")
 
         if not self.config_data.iniciar_com_windows:
             self.switch_persistir.configure(state="disabled")
@@ -139,75 +212,103 @@ class ConfigTab(ctk.CTkFrame):
         # ===============================================================
         # BLOCO 2: MONITOR (Comportamento do Motor e Automação)
         # ===============================================================
-        self.frame_mon = ctk.CTkFrame(self, fg_color="transparent")
-        self.frame_mon.pack(fill="both", expand=True, padx=10, pady=5)
+        self.frame_mon = ctk.CTkFrame(self, fg_color=AppColors.TRANSPARENT)
+        self.frame_mon.pack(fill="x", padx=10, pady=(0,10))
 
-        ctk.CTkLabel(self.frame_mon, text="MONITOR", font=("Arial", 14, "bold"), text_color="#1f538d").pack(anchor="w", padx=5)
+        ctk.CTkLabel(self.frame_mon, text="Monitor", font=("Arial", 16, "bold"), text_color=AppColors.CHARCOAL_BLUE).pack(anchor="w")
 
         # Container Grid (2 Colunas)
-        grid_mon = ctk.CTkFrame(self.frame_mon, fg_color=["#e8e8e8", "#2b2b2b"])
-        grid_mon.pack(fill="both", expand=True, pady=5)
-        grid_mon.grid_columnconfigure((0, 1), weight=1)
+        grid_mon = ctk.CTkFrame(self.frame_mon,
+            fg_color=AppColors.WHITE,
+            border_color=AppColors.PLATINUM,
+            border_width=2,
+            corner_radius=8,
+            )
+        grid_mon.pack(fill="x")
+        grid_mon.grid_columnconfigure((0,1), weight=1, uniform="mon_group")
+
 
         # --- LINHA 1: Intervalos Básicos ---
         
         # Coluna 0: Ciclo de Verificação
-        f_ciclo = ctk.CTkFrame(grid_mon, fg_color="transparent")
-        f_ciclo.grid(row=0, column=0, sticky="nsew", padx=15, pady=10)
-        ctk.CTkLabel(f_ciclo, text="Ciclo de Verificação:", font=("Arial", 12, "bold")).pack(anchor="w")
+        f_ciclo = ctk.CTkFrame(grid_mon, fg_color=AppColors.TRANSPARENT)
+        f_ciclo.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-        self.combo_intervalo = ctk.CTkOptionMenu(f_ciclo, values=list(self.opcoes_tempo.keys()), command=self._alterar_intervalo)
+        f_linha_controles = ctk.CTkFrame(f_ciclo, fg_color="transparent")
+        f_linha_controles.pack(fill="x", anchor="w")
+
+        ctk.CTkLabel(f_linha_controles, text="Ciclo de Verificação:",
+            font=("Arial", 12, "bold"),
+            text_color=AppColors.NIGHT).pack(side="left")
+
+        self.combo_intervalo = ctk.CTkOptionMenu(f_linha_controles, values=list(self.opcoes_tempo.keys()), command=self._alterar_intervalo)
         self._set_combo_inicial(self.combo_intervalo, self.config_data.intervalo, self.opcoes_tempo)
-        self.combo_intervalo.pack(anchor="w", pady=5)
-        ctk.CTkLabel(
+        self.combo_intervalo.pack(side="left", padx=5)
+
+        lbl_ciclo = ctk.CTkLabel(
             f_ciclo, 
             text="Intervalo para realização de verificação dos status dos programas adicionados a lista.", 
             font=("Arial", 11), 
             text_color="gray",
-            wraplength=450,
             justify="left",
-            anchor="n"
-        ).pack(anchor="w")
+            anchor="nw"
+        )
+        lbl_ciclo.pack(fill="x", pady=(10,0))
+        f_ciclo.bind("<Configure>", lambda e: lbl_ciclo.configure(wraplength=f_ciclo.winfo_width()-10))
+
 
         # Coluna 1: Heartbeat (Rotina)
-        f_heart = ctk.CTkFrame(grid_mon, fg_color="transparent")
-        f_heart.grid(row=0, column=1, sticky="nsew", padx=15, pady=10)
-        ctk.CTkLabel(f_heart, text="Relatório de Rotina:", font=("Arial", 12, "bold")).pack(anchor="w")
-        
-        self.combo_heartbeat = ctk.CTkOptionMenu(f_heart, values=[f"{h} horas" for h in [2, 4, 6, 8, 12, 24]], command=self._alterar_heartbeat)
-        self.combo_heartbeat.set(f"{self.config_data.intervalo_heartbeat} horas")
-        self.combo_heartbeat.pack(anchor="w", pady=5)
+        f_heart = ctk.CTkFrame(grid_mon, fg_color=AppColors.TRANSPARENT)
+        f_heart.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
-        ctk.CTkLabel(
+        f_linha_heart = ctk.CTkFrame(f_heart, fg_color="transparent")
+        f_linha_heart.pack(fill="x", anchor="w")
+
+        ctk.CTkLabel(f_linha_heart,
+            text="Relatório de Rotina:",
+            font=("Arial", 12, "bold"),
+            text_color=AppColors.NIGHT).pack(side="left")
+        
+        self.combo_heartbeat = ctk.CTkOptionMenu(f_linha_heart, values=[f"{h} horas" for h in [2, 4, 6, 8, 12, 24]], command=self._alterar_heartbeat)
+        self.combo_heartbeat.set(f"{self.config_data.intervalo_heartbeat} horas")
+        self.combo_heartbeat.pack(side="left", padx=5)
+
+        lbl_heart = ctk.CTkLabel(
             f_heart, 
             text="Gera um registro no log confirmando que os programas estão rodando, mesmo se não houver falhas.", 
             font=("Arial", 11), 
             text_color="gray",
-            wraplength=450,
-            justify="left"
-        ).pack(anchor="w")
+            justify="left",
+            anchor="nw"
+        )
+        lbl_heart.pack(fill="x", pady=(10,0))
+        f_heart.bind("<Configure>", lambda e: lbl_heart.configure(wraplength=f_heart.winfo_width()-10))
 
-        
         # --- LINHA 2: Logs e Automação ---
 
         # Coluna 0: Histórico de Logs
-        f_logs = ctk.CTkFrame(grid_mon, fg_color="transparent")
-        f_logs.grid(row=2, column=0, sticky="nsew", padx=15, pady=10)
-        
+        f_logs = ctk.CTkFrame(grid_mon, fg_color=AppColors.TRANSPARENT)
+        f_logs.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+
         self.lbl_dias = ctk.CTkLabel(f_logs, text=f"Histórico de Logs: {self.config_data.dias_log} dias", font=("Arial", 12, "bold"))
         self.lbl_dias.pack(anchor="w")
         
         self.slider_dias = ctk.CTkSlider(f_logs, from_=1, to=30, number_of_steps=29, command=self._alterar_dias_log)
         self.slider_dias.set(self.config_data.dias_log)
-        self.slider_dias.pack(fill="x", pady=5)
-        ctk.CTkLabel(
+        self.slider_dias.pack(fill="x")
+
+        lbl_logs = ctk.CTkLabel(
             f_logs,
             text="Arquivos de log mais antigos que o limite serão apagados automaticamente.", 
             font=("Arial", 11), 
             text_color="gray",
-            wraplength=450,
-            justify="left"
-        ).pack(anchor="w")
+            justify="left",
+            anchor="nw"
+        )
+        lbl_logs.pack(fill="x", pady=(10,0))
+        f_logs.bind("<Configure>", lambda e: lbl_logs.configure(wraplength=f_logs.winfo_width()-10))
+        
+        
 
     def _set_combo_inicial(self, combo, valor_atual, opcoes):
         texto = "5 segundos"
