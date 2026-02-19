@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Dict
+from datetime import datetime
+from typing import Dict, Optional
 
 @dataclass
 class ProcessoAlvo:
@@ -7,6 +8,12 @@ class ProcessoAlvo:
     path: str
     regra: str  # "Não Reiniciar", "Sempre Reiniciar", etc.
     status: str = "Iniciando"
+@dataclass
+class LicencaInfo:
+    chave: str = ""
+    hwid_vinculado: str = ""
+    data_expiracao: Optional[datetime] = None
+    ativa: bool = False
 
 @dataclass
 class AppConfig:
@@ -20,3 +27,4 @@ class AppConfig:
     delay_inicializacao: int = 20 
     acao_ao_iniciar: str = "ignorar"
     processos: Dict[str, dict] = field(default_factory=dict)
+    licenca: LicencaInfo = field(default_factory=LicencaInfo)

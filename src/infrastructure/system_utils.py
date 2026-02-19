@@ -139,3 +139,38 @@ class SystemUtils:
             base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
 
         return os.path.join(base_path, relative_path)
+    
+    @staticmethod
+    def obter_hwid():
+        """ Obtém o UUID da placa-mãe via WMIC para identificação única """
+        try:
+            import subprocess
+            output = subprocess.check_output(
+                "wmic csproduct get uuid", 
+                shell=True, 
+                creationflags=subprocess.CREATE_NO_WINDOW
+            ).decode('utf-8').split('\n')[1].strip()
+            return output if output else "HWID_DESCONHECIDO"
+        except Exception as e:
+            print(f"Erro ao obter HWID: {e}")
+            return "HWID_DESCONHECIDO"
+
+    @staticmethod
+    def enviar_notificacao_windows(titulo: str, mensagem: str):
+        """ Envia notificação nativa para a Central de Ações do Windows 10/11 """
+        try:
+            import subprocess
+            ps_script = f"""
+            [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+            $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+            $toastXml = [xml] $template.GetXml()
+            $toastXml.GetElementsByTagName("text")[0].AppendChild($toastXml.CreateTextNode("{titulo}")) > $null
+            $toastXml.GetElementsByTagName("text")[1].AppendChild($toastXml.CreateTextNode("{mensagem}")) > $null
+            $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+            $xml.LoadXml($toastXml.OuterXml)
+            $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+            [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("WatchdogApp").Show($toast)
+            """
+            subprocess.run(["powershell", "-Command", ps_script], creationflags=subprocess.CREATE_NO_WINDOW)
+        except Exception as e:
+            print(f"Erro ao enviar notificação: {e}")

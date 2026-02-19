@@ -7,11 +7,13 @@ import psutil
 from ..infrastructure.system_utils import SystemUtils
 
 class WatchdogEngine:
-    def __init__(self, config, log_callback):
+    def __init__(self, config, log_callback, auth_service):
         self.config = config
         self.log_callback = log_callback
+        self.auth_service = auth_service
         self.rodando = False
         self._thread = None
+        self.callback_licenca_expirada = None
 
     def iniciar(self):
         if self.rodando: return
@@ -73,6 +75,19 @@ class WatchdogEngine:
                 if fazer_relatorio_rotina:
                     self.log_callback(f"\n{'='*15} CHECAGEM DE ROTINA ({hora_atual_str}) {'='*15}", com_hora=False)
                     ultimo_heartbeat = agora
+
+                    if not self.auth_service.verificar_status_atual():
+                        self.log_callback("❌ ATENÇÃO: A licença de uso expirou!", com_hora=False)
+                        SystemUtils.enviar_notificacao_windows(
+                            "WatchdogApp - Licença Expirada", 
+                            "O monitoramento foi interrompido. Insira uma nova chave para continuar."
+                        )
+                        # Avisa a Janela Principal para bloquear tudo
+                        if self.callback_licenca_expirada:
+                            self.callback_licenca_expirada()
+                            
+                        self.parar()
+                        break
 
                 for nome, dados in processos_alvo.items():
                     esta_rodando = nome.lower() in ativos_agora

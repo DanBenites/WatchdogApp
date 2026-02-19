@@ -172,6 +172,10 @@ class MonitorTab(ctk.CTkFrame):
         widget.configure(fg_color="#1f538d", text_color="white")
 
     def adicionar_ao_monitor(self):
+        if not self.app.auth_service.verificar_status_atual():
+            self.app.exibir_overlay_licenca()
+            return
+
         if not hasattr(self, 'escolha_nome') or not self.escolha_nome: return
         if self.escolha_nome in self.config_data.processos: return
         
@@ -281,6 +285,10 @@ class MonitorTab(ctk.CTkFrame):
             self.criar_linha_monitor(nome, dados['regra'], dados.get("path"))
     
     def toggle_monitor(self):
+        if not self.app.auth_service.verificar_status_atual():
+            self.app.exibir_overlay_licenca()
+            return
+
         if not self.engine.rodando:
             # INICIAR
             if not self.config_data.processos:
@@ -399,3 +407,25 @@ class MonitorTab(ctk.CTkFrame):
         self.btn_start.configure(image=self.icon_manager._icons.get("stop"), text="PARAR MONITORAMENTO", height=32, fg_color="orange")
         self._definir_estado_edicao("disabled")
         self.log("✅ Monitoramento retomado automaticamente.")
+    
+    def bloquear_por_licenca(self):
+        """ Chamado quando a licença expira para travar a tela """
+        self.btn_start.configure(
+            image=self.icon_manager._icons.get("play"),
+            text="LICENÇA EXPIRADA - ATIVAR",
+            text_color=AppColors.WHITE,
+            fg_color="gray", # Cor de desativado
+            hover_color="darkgray",
+            command=self.app.exibir_overlay_licenca # Redireciona o clique para o Overlay
+        )
+        self._definir_estado_edicao("disabled")
+
+    def desbloquear_por_licenca(self):
+        """ Restaura o comportamento original do botão Start após ativar chave """
+        self.btn_start.configure(
+            text="INICIAR MONITORAMENTO",
+            fg_color=AppColors.DUSK_BLUE,
+            hover_color="#14375d",
+            command=self.toggle_monitor
+        )
+        self._definir_estado_edicao("normal")
