@@ -112,7 +112,7 @@ class WatchdogApp(ctk.CTk):
         self._select_menu_button("Monitor")
         self._show_monitor()
 
-        historico = self.log_manager.ler_conteudo_dia()
+        historico = self.log_manager.ler_todo_historico()
         if historico: 
             self.view_logs.adicionar_linha(historico)
 
@@ -153,7 +153,7 @@ class WatchdogApp(ctk.CTk):
 
     def registrar_log(self, msg, com_hora=True):
         if com_hora:
-            hora = datetime.now().strftime('%H:%M:%S')
+            hora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
             msg = f"[{hora}] {msg}"
             
         self.log_manager.escrever(msg)
