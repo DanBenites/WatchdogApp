@@ -87,6 +87,8 @@ class IconeManager:
             "copy": SystemUtils.resource_path(os.path.join("assets", "icons", "copy.png")),
             "folder": SystemUtils.resource_path(os.path.join("assets", "icons", "folder.png")),
             "file_save": SystemUtils.resource_path(os.path.join("assets", "icons", "file_save.png")),
+            "paste": SystemUtils.resource_path(os.path.join("assets", "icons", "paste.png")),
+            "copy_dark": SystemUtils.resource_path(os.path.join("assets", "icons", "copy_dark.png")),
         }
 
         # Carrega cada ícone se o arquivo existir

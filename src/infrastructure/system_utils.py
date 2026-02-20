@@ -157,15 +157,34 @@ class SystemUtils:
 
     @staticmethod
     def enviar_notificacao_windows(titulo: str, mensagem: str):
-        """ Envia notificação nativa para a Central de Ações do Windows 10/11 """
+        """ Envia notificação nativa para a Central de Ações do Windows 10/11 com Ícone """
         try:
             import subprocess
+            import os
+            
+            # Pega o caminho absoluto da logo em PNG
+            caminho_icone = SystemUtils.resource_path(os.path.join("assets", "icons", "logo.png"))
+            
+            # O PowerShell precisa do caminho no formato URI "file:///" e com barras normais
+            caminho_uri = "file:///" + caminho_icone.replace("\\", "/")
+            
+            # Usamos o template ToastImageAndText02 que suporta 1 imagem e 2 textos
             ps_script = f"""
             [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
-            $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+            $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastImageAndText02)
             $toastXml = [xml] $template.GetXml()
             $toastXml.GetElementsByTagName("text")[0].AppendChild($toastXml.CreateTextNode("{titulo}")) > $null
             $toastXml.GetElementsByTagName("text")[1].AppendChild($toastXml.CreateTextNode("{mensagem}")) > $null
+            """
+            
+            # Só insere a imagem se o arquivo realmente existir no computador do usuário
+            if os.path.exists(caminho_icone):
+                ps_script += f"""
+                $imageNode = $toastXml.GetElementsByTagName("image")[0]
+                $imageNode.SetAttribute("src", "{caminho_uri}") > $null
+                """
+                
+            ps_script += """
             $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
             $xml.LoadXml($toastXml.OuterXml)
             $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)

@@ -1,160 +1,188 @@
-import sys
-import os
-import threading
-from tkinter import messagebox
 import customtkinter as ctk
-
-from ...infrastructure.persistence import PersistenceRepository
-from ...infrastructure.system_utils import SystemUtils
-from ...ui.colors import AppColors
-
-class License_Overlay:
-    def __init__(self, app_reference):
-        self.app = app_reference
-        self.icon = None
-
-    def exibir_overlay_licenca(self):
-        """ Desenha o painel sobreposto (Overlay) no centro da tela bloqueando o acesso """
-        if self.overlay_frame is not None:
-            self.overlay_frame.destroy()
-            
-        # Traz a janela para frente caso o sistema chame o overlay da bandeja
-        if self.state() != "normal":
-            self._mostrar_janela_safe()
-            
-        self.overlay_frame = ctk.CTkFrame(self, fg_color=AppColors.BRIGHT_SNOW, border_color=AppColors.DUSK_BLUE, border_width=2, corner_radius=10)
-        # Place permite sobrepor independente dos grids embaixo
-        self.overlay_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.6, relheight=0.6)
-        
-        lbl_titulo = ctk.CTkLabel(self.overlay_frame, text="Licença Necessária", font=("Arial", 22, "bold"), text_color=AppColors.DUSK_BLUE)
-        lbl_titulo.pack(pady=(30, 10))
-        
-        lbl_desc = ctk.CTkLabel(self.overlay_frame, text="Sua chave de acesso expirou ou não foi configurada.\nPara continuar monitorando, insira uma nova licença vinculada a esta máquina.", font=("Arial", 12))
-        lbl_desc.pack(pady=5)
-        
-        # Campo para o usuário copiar o HWID dele
-        frame_hwid = ctk.CTkFrame(self.overlay_frame, fg_color="transparent")
-        frame_hwid.pack(pady=10)
-        
-        ctk.CTkLabel(frame_hwid, text="Seu HWID:", font=("Arial", 12, "bold")).pack(side="left", padx=5)
-        entry_hwid = ctk.CTkEntry(frame_hwid, width=250, fg_color=AppColors.PLATINUM, text_color=AppColors.NIGHT)
-        entry_hwid.pack(side="left")
-        entry_hwid.insert(0, self.auth_service.obter_hwid_maquina())
-        entry_hwid.configure(state="readonly")
-        
-        # Campo da Chave
-        self.entry_chave = ctk.CTkEntry(self.overlay_frame, placeholder_text="Insira sua Chave (WDA-...) aqui...", width=350, height=35)
-        self.entry_chave.pack(pady=(20, 5))
-        
-        self.lbl_erro_chave = ctk.CTkLabel(self.overlay_frame, text="", text_color="red", font=("Arial", 12))
-        self.lbl_erro_chave.pack(pady=5)
-        
-        btn_frame = ctk.CTkFrame(self.overlay_frame, fg_color="transparent")
-        btn_frame.pack(pady=20)
-        
-        ctk.CTkButton(btn_frame, text="Validar Chave", command=self._validar_licenca_ui, fg_color=AppColors.GREEN, height=35).pack(side="left", padx=10)
-        ctk.CTkButton(btn_frame, text="Ignorar e Fechar Aviso", command=self.overlay_frame.destroy, fg_color=AppColors.FLAG_RED, height=35).pack(side="left", padx=10)
-
-    def _validar_licenca_ui(self):
-        chave = self.entry_chave.get().strip()
-        if not chave:
-            self.lbl_erro_chave.configure(text="A chave não pode estar vazia.")
-            return
-            
-        sucesso, msg = self.auth_service.validar_chave_inserida(chave)
-        if sucesso:
-            PersistenceRepository.salvar(self.config_data)
-            self.overlay_frame.destroy()
-            self.overlay_frame = None
-            
-            # Limpa tudo, atualiza o ícone removendo a bolinha e desbloqueia tela
-            self.view_monitor.desbloquear_por_licenca()
-            self.tray_handler.atualizar_icone()
-            self.registrar_log("✅ Nova chave de acesso validada com sucesso.")
-            messagebox.showinfo("Sucesso", msg)
-        else:
-            self.lbl_erro_chave.configure(text=msg)
-
-    def _pos_splash_callback(self):
-        """ Chamado quando a splash termina """
-        # === BLOQUEIO INICIAL: VERIFICA A LICENÇA NO BOOT ===
-        if not self.auth_service.verificar_status_atual():
-            self._processar_bloqueio_ui()
-            
-            # Se for iniciado com o Windows, fica quieto na bandeja. Se não, mostra o overlay
-            if self.iniciado_pelo_sistema and self.config_data.minimizar_para_tray:
-                self.tray_handler.criar_icone()
-                SystemUtils.enviar_notificacao_windows("WatchdogApp", "Iniciado com licença pendente/expirada.")
-            else:
-                self.deiconify()
-                self.exibir_overlay_licenca()
-            return # Aborta o resto do callback para NÃO iniciar o monitoramento
-        # ====================================================
-        
-        minimizar = self.config_data.minimizar_para_tray
-        
-        if minimizar and self.iniciado_pelo_sistema:
-            self.tray_handler.criar_icone()
-            self.registrar_log("ℹ️ Iniciado na bandeja (Boot do Sistema).")
-        elif minimizar and not self.iniciado_pelo_sistema:
-            self.deiconify() 
-        else:
-            self.deiconify()
-            import customtkinter as ctk
-from tkinter import messagebox
 from ...infrastructure.persistence import PersistenceRepository
 from ..colors import AppColors
 
 class LicenseOverlay(ctk.CTkFrame):
-    def __init__(self, parent, auth_service, config_data, on_success_callback, on_close_callback):
+    def __init__(self, parent, auth_service, config_data, icon_manager, on_success_callback, on_close_callback):
         super().__init__(
-            parent, 
-            fg_color=AppColors.BRIGHT_SNOW, 
-            border_color=AppColors.DUSK_BLUE, 
-            border_width=2, 
+            parent,
+            bg_color=AppColors.TRANSPARENT,
+            fg_color=AppColors.DUSK_BLUE,
             corner_radius=10
         )
         self.auth_service = auth_service
         self.config_data = config_data
+        self.icon_manager = icon_manager
         self.on_success_callback = on_success_callback
         self.on_close_callback = on_close_callback
         
         self._setup_ui()
 
     def _setup_ui(self):
-        lbl_titulo = ctk.CTkLabel(self, text="Licença Necessária", font=("Arial", 22, "bold"), text_color=AppColors.DUSK_BLUE)
-        lbl_titulo.pack(pady=(30, 10))
+        lbl_titulo = ctk.CTkLabel(self, text="Licença Necessária", font=("Arial", 20, "bold"), text_color=AppColors.WHITE)
+        lbl_titulo.pack(pady=(20, 5))
         
-        lbl_desc = ctk.CTkLabel(self, text="Sua chave de acesso expirou ou não foi configurada.\nPara continuar monitorando, insira uma nova licença vinculada a esta máquina.", font=("Arial", 12))
+        lbl_desc = ctk.CTkLabel(self, 
+            text="Sua chave de acesso expirou ou não foi configurada.\nPara continuar monitorando, insira uma nova licença vinculada a esta máquina.",
+            font=("Arial", 12),
+            text_color=AppColors.WHITE,
+            )
         lbl_desc.pack(pady=5)
         
-        # Campo para o usuário copiar o HWID dele
+        # --- HWID SECTION ---
+
         frame_hwid = ctk.CTkFrame(self, fg_color="transparent")
-        frame_hwid.pack(pady=10)
+        frame_hwid.pack(pady=(10, 0), padx=20)
         
-        ctk.CTkLabel(frame_hwid, text="Seu HWID:", font=("Arial", 12, "bold")).pack(side="left", padx=5)
-        entry_hwid = ctk.CTkEntry(frame_hwid, width=250, fg_color=AppColors.PLATINUM, text_color=AppColors.NIGHT)
-        entry_hwid.pack(side="left")
-        entry_hwid.insert(0, self.auth_service.obter_hwid_maquina())
-        entry_hwid.configure(state="readonly")
+        # Label alinhada à esquerda
+        ctk.CTkLabel(
+            frame_hwid, 
+            text="Seu HWID", 
+            font=("Arial", 12, "bold"), 
+            text_color=AppColors.WHITE
+        ).pack(anchor="w", pady=(0, 2))
         
-        # Campo da Chave
-        self.entry_chave = ctk.CTkEntry(self, placeholder_text="Insira sua Chave (WDA-...) aqui...", width=350, height=35)
-        self.entry_chave.pack(pady=(20, 5))
+        input_wrapper = ctk.CTkFrame(
+            frame_hwid, 
+            fg_color=AppColors.WHITE,
+            border_color=AppColors.PLATINUM,
+            border_width=2, 
+            corner_radius=6,
+            width=332,
+            height=32
+        )
+        input_wrapper.pack(anchor="w")
         
-        self.lbl_erro_chave = ctk.CTkLabel(self, text="", text_color="red", font=("Arial", 12))
-        self.lbl_erro_chave.pack(pady=5)
+        # Caixa de Texto (Fundo transparente e sem borda)
+        self.entry_hwid = ctk.CTkEntry(
+            input_wrapper,
+            width=300,
+            height=32,
+            text_color=AppColors.NIGHT,
+            fg_color="transparent",
+            border_width=0,        
+            corner_radius=0         
+        )
+        self.entry_hwid.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        self.entry_hwid.insert(0, self.auth_service.obter_hwid_maquina())
+        self.entry_hwid.configure(state="readonly")
+
+        icone_copiar = self.icon_manager._icons.get("copy_dark")
+        ctk.CTkButton(
+            input_wrapper,
+            text="📄​" if icone_copiar is None else "",
+            image=icone_copiar,
+            width=32,
+            height=32,
+            fg_color="transparent",
+            hover_color=AppColors.PLATINUM, 
+            text_color=AppColors.NIGHT,
+            border_width=0,
+            corner_radius=4,
+            command=self._copiar_hwid
+        ).pack(side="right", padx=(2, 2), pady=2)
         
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(pady=20)
+        # --- CHAVE SECTION ---
+       
+        frame_key = ctk.CTkFrame(self, fg_color="transparent")
+        frame_key.pack(pady=(10, 0), padx=20)
         
-        ctk.CTkButton(btn_frame, text="Validar Chave", command=self._validar_licenca, fg_color=AppColors.GREEN, height=35).pack(side="left", padx=10)
-        ctk.CTkButton(btn_frame, text="Ignorar e Fechar", command=self._fechar, fg_color=AppColors.FLAG_RED, height=35).pack(side="left", padx=10)
+        # Label alinhada à esquerda
+        ctk.CTkLabel(
+            frame_key, 
+            text="Insira sua Chave de Licença:", 
+            font=("Arial", 12, "bold"), 
+            text_color=AppColors.WHITE
+        ).pack(anchor="w", pady=(0, 2))
+        
+        input_wrapper = ctk.CTkFrame(
+            frame_key, 
+            fg_color=AppColors.WHITE,
+            border_color=AppColors.PLATINUM,
+            border_width=2, 
+            corner_radius=6,
+            width=332,
+            height=32
+        )
+        input_wrapper.pack(anchor="w")
+        
+        # Caixa de Texto (Fundo transparente e sem borda)
+        self.entry_chave = ctk.CTkEntry(
+            input_wrapper,
+            placeholder_text="Cole sua Chave de Licença aqui...",
+            width=300,
+            height=32,
+            text_color=AppColors.NIGHT,
+            fg_color="transparent",
+            border_width=0,        
+            corner_radius=0         
+        )
+        
+        self.entry_chave.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        
+        icone_colar = self.icon_manager._icons.get("paste")
+        ctk.CTkButton(
+            input_wrapper,
+            text="📋" if icone_colar is None else "",
+            image=icone_colar,
+            width=32,
+            height=32,
+            fg_color="transparent",
+            hover_color=AppColors.PLATINUM, 
+            text_color=AppColors.NIGHT,
+            border_width=0,
+            corner_radius=4,
+            command=self._colar_chave
+        ).pack(side="right", padx=(2, 2), pady=2)
+        
+        # --- ERRO E BOTÕES FINAIS ---
+        self.lbl_erro_chave = ctk.CTkLabel(self, text="", text_color=AppColors.FLAG_RED, font=("Arial", 12))
+        self.lbl_erro_chave.pack(pady=(5, 10))
+        
+        btn_frame = ctk.CTkFrame(self, fg_color=AppColors.TRANSPARENT)
+        btn_frame.pack(pady=(0, 20))
+
+        ctk.CTkButton(btn_frame,
+            text="Ignorar e Fechar", 
+            command=self._fechar,
+            text_color=AppColors.CHARCOAL_BLUE,
+            fg_color=AppColors.WHITE,
+            hover_color=AppColors.PLATINUM,
+            border_color=AppColors.PLATINUM,
+            border_width=2,
+            corner_radius=4,
+            height=32
+        ).pack(side="left", padx=5)
+        
+        ctk.CTkButton(btn_frame, text="Validar Chave",
+            command=self._validar_licenca,
+            text_color=AppColors.WHITE,
+            fg_color=AppColors.BRILLIANT_AZURE,
+            corner_radius=4,
+            height=32
+        ).pack(side="left", padx=5)
+
+    def _copiar_hwid(self):
+        """ Copia o HWID para a área de transferência """
+        self.clipboard_clear()
+        self.clipboard_append(self.auth_service.obter_hwid_maquina())
+        self.update() # Necessário no Tkinter para garantir a cópia
+        self.lbl_erro_chave.configure(text="HWID copiado!", text_color=AppColors.WHITE)
+        self.after(2000, lambda: self.lbl_erro_chave.configure(text="")) # Limpa a mensagem após 2s
+
+    def _colar_chave(self):
+        """ Cola o texto da área de transferência na entrada de chave """
+        try:
+            texto_colado = self.clipboard_get()
+            self.entry_chave.delete(0, "end")
+            self.entry_chave.insert(0, texto_colado)
+        except Exception:
+            pass # Ignora se não houver texto na área de transferência
 
     def _validar_licenca(self):
         chave = self.entry_chave.get().strip()
         if not chave:
-            self.lbl_erro_chave.configure(text="A chave não pode estar vazia.")
+            self.lbl_erro_chave.configure(text="A chave não pode estar vazia.", text_color=AppColors.YELLOW)
             return
             
         sucesso, msg = self.auth_service.validar_chave_inserida(chave)
@@ -163,12 +191,8 @@ class LicenseOverlay(ctk.CTkFrame):
             self.on_success_callback(msg)
             self.destroy()
         else:
-            self.lbl_erro_chave.configure(text=msg)
+            self.lbl_erro_chave.configure(text=msg, text_color=AppColors.YELLOW)
             
     def _fechar(self):
         self.on_close_callback()
         self.destroy()
-        if self.config_data.persistir_monitoramento and self.config_data.monitoramento_ativo_no_fechamento:
-            delay = self.config_data.delay_inicializacao
-            self.registrar_log(f"⏳ Aguardando {delay}s para automação...")
-            self.after(delay * 1000, self._executar_automacao)

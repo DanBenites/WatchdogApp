@@ -112,11 +112,15 @@ class WatchdogApp(ctk.CTk):
         if self.state() != "normal": self._mostrar_janela_safe()
             
         self.overlay_frame = LicenseOverlay(
-            self, self.auth_service, self.config_data,
+            self, 
+            self.auth_service, 
+            self.config_data,
+            self.icon_manager, # <--- Passando o gerenciador de ícones
             on_success_callback=self._ao_licenca_ativada_sucesso,
             on_close_callback=lambda: None
         )
-        self.overlay_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.6, relheight=0.6)
+        # Reduzi o tamanho relativo de 0.6 para 0.5 (ou você pode trocar para width=450, height=350 fixos)
+        self.overlay_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.5, relheight=0.55)
 
     def _ao_licenca_ativada_sucesso(self, msg):
         self.view_monitor.desbloquear_por_licenca()
