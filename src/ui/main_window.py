@@ -18,6 +18,7 @@ from .tabs.account_tab import AccountTab
 from .colors import AppColors
 
 from ..infrastructure.system_utils import SystemUtils
+from ..infrastructure.persistence import PersistenceRepository
 
 class WatchdogApp(ctk.CTk):
     def __init__(self, config_data, log_manager, icon_manager, auth_service):
@@ -65,7 +66,7 @@ class WatchdogApp(ctk.CTk):
 
     def _inicializar_views(self):
         self.view_monitor = MonitorTab(self.content_frame, self.engine, self.config_data, self.icon_manager, self.registrar_log, self)
-        self.view_config = ConfigTab(self.content_frame, self.engine, self.config_data, None, self.registrar_log, self.log_manager)
+        self.view_config = ConfigTab(self.content_frame, self.engine, self.config_data, PersistenceRepository, self.registrar_log, self.log_manager)
         self.view_logs = LogTab(self.content_frame, self.log_manager)
         self.view_account = AccountTab(self.content_frame, self.config_data, self.auth_service, self.icon_manager, self)
 
