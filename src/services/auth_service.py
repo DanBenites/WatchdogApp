@@ -2,7 +2,7 @@ import base64
 import json
 from datetime import datetime
 
-from infrastructure.persistence import PersistenceRepository
+from ..infrastructure.persistence import PersistenceRepository
 from ..domain.models import LicencaInfo
 from ..infrastructure.system_utils import SystemUtils
 
