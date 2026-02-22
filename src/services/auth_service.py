@@ -1,6 +1,8 @@
 import base64
 import json
 from datetime import datetime
+
+from infrastructure.persistence import PersistenceRepository
 from ..domain.models import LicencaInfo
 from ..infrastructure.system_utils import SystemUtils
 
@@ -8,19 +10,13 @@ class AuthService:
     def __init__(self, config_data):
         self.config = config_data
         self.hwid_atual = SystemUtils.obter_hwid()
-        self._SECRET = "WATCHDOG_LOCAL_SECRET_KEY_2026" # Simula a segurança offline
+        self._SECRET = "WATCHDOG_LOCAL_SECRET_KEY_2026"
 
     def obter_hwid_maquina(self) -> str:
         return self.hwid_atual
 
     def validar_chave_inserida(self, chave_texto: str) -> tuple[bool, str]:
-        """ Valida uma nova chave digitada pelo usuário """
         try:
-            # Em um cenário real offline, a chave estaria encriptada (ex: Fernet, AES ou JWT)
-            # Para estruturar o esqueleto, vamos usar Base64 de um JSON para simular o Payload
-            # Formato esperado: base64({"hwid": "...", "exp": "YYYY-MM-DD"})
-            
-            # Limpa prefixos hipotéticos caso você crie um gerador (ex: WDA-...)
             chave_limpa = chave_texto.replace("WDA-", "").strip()
             
             payload_bytes = base64.b64decode(chave_limpa)
@@ -29,7 +25,6 @@ class AuthService:
             hwid_chave = payload.get("hwid")
             data_exp_str = payload.get("exp")
             data_criacao_str = payload.get("iat")
-            
             
             if not hwid_chave or not data_exp_str:
                 return False, "Formato de chave inválido."
@@ -43,12 +38,15 @@ class AuthService:
             if datetime.now() > data_exp:
                 return False, "Esta chave já está expirada."
                 
-            # Se passou em tudo, atualiza o modelo
+            # Se passou em tudo, atualiza o modelo na memória
             self.config.licenca.chave = chave_texto
             self.config.licenca.hwid_vinculado = hwid_chave
             self.config.licenca.data_criacao = data_criacao
             self.config.licenca.data_expiracao = data_exp
             self.config.licenca.ativa = True
+            
+            # --- NOVA LINHA AQUI: Guarda permanentemente no ficheiro JSON ---
+            PersistenceRepository.salvar(self.config)
             
             return True, "Licença ativada com sucesso!"
             
