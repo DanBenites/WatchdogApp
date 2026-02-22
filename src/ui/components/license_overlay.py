@@ -37,7 +37,7 @@ class LicenseOverlay(ctk.CTkFrame):
         # Label alinhada à esquerda
         ctk.CTkLabel(
             frame_hwid, 
-            text="Seu HWID", 
+            text="Seu HWID:", 
             font=("Arial", 12, "bold"), 
             text_color=AppColors.WHITE
         ).pack(anchor="w", pady=(0, 2))
@@ -142,7 +142,11 @@ class LicenseOverlay(ctk.CTkFrame):
         btn_frame = ctk.CTkFrame(self, fg_color=AppColors.TRANSPARENT)
         btn_frame.pack(pady=(0, 20))
 
-        ctk.CTkButton(btn_frame,
+        intern_frame_btns = ctk.CTkFrame(btn_frame, fg_color=AppColors.TRANSPARENT, width=340, height=32)
+        intern_frame_btns.pack_propagate(False)
+        intern_frame_btns.pack(anchor="w")
+
+        ctk.CTkButton(intern_frame_btns,
             text="Ignorar e Fechar", 
             command=self._fechar,
             text_color=AppColors.CHARCOAL_BLUE,
@@ -152,15 +156,15 @@ class LicenseOverlay(ctk.CTkFrame):
             border_width=2,
             corner_radius=4,
             height=32
-        ).pack(side="left", padx=5)
+        ).pack(side="left", fill="x", expand=True, padx=(0,5))
         
-        ctk.CTkButton(btn_frame, text="Validar Chave",
+        ctk.CTkButton(intern_frame_btns, text="Validar Chave",
             command=self._validar_licenca,
             text_color=AppColors.WHITE,
             fg_color=AppColors.BRILLIANT_AZURE,
             corner_radius=4,
             height=32
-        ).pack(side="left", padx=5)
+        ).pack(side="left", fill="x", expand=True, padx=(5,0))
 
     def _copiar_hwid(self):
         """ Copia o HWID para a área de transferência """

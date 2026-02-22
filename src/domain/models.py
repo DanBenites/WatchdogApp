@@ -12,6 +12,7 @@ class ProcessoAlvo:
 class LicencaInfo:
     chave: str = ""
     hwid_vinculado: str = ""
+    data_criacao: Optional[datetime] = None
     data_expiracao: Optional[datetime] = None
     ativa: bool = False
 

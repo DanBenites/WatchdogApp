@@ -67,7 +67,7 @@ class WatchdogApp(ctk.CTk):
         self.view_monitor = MonitorTab(self.content_frame, self.engine, self.config_data, self.icon_manager, self.registrar_log, self)
         self.view_config = ConfigTab(self.content_frame, self.engine, self.config_data, None, self.registrar_log, self.log_manager)
         self.view_logs = LogTab(self.content_frame, self.log_manager)
-        self.view_account = AccountTab(self.content_frame)
+        self.view_account = AccountTab(self.content_frame, self.config_data, self.auth_service, self.icon_manager, self)
 
         # Estado Inicial
         self.sidebar.definir_selecao("Monitor")
@@ -124,6 +124,8 @@ class WatchdogApp(ctk.CTk):
 
     def _ao_licenca_ativada_sucesso(self, msg):
         self.view_monitor.desbloquear_por_licenca()
+        if hasattr(self, 'view_account'):
+            self.view_account._carregar_dados()
         if self.tray_handler: self.tray_handler.atualizar_icone()
         self.registrar_log("✅ Nova chave de acesso validada com sucesso.")
         messagebox.showinfo("Sucesso", msg)

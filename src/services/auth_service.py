@@ -28,6 +28,8 @@ class AuthService:
             
             hwid_chave = payload.get("hwid")
             data_exp_str = payload.get("exp")
+            data_criacao_str = payload.get("iat")
+            
             
             if not hwid_chave or not data_exp_str:
                 return False, "Formato de chave inválido."
@@ -36,13 +38,15 @@ class AuthService:
                 return False, "Esta chave pertence a outro computador (HWID não confere)."
                 
             data_exp = datetime.strptime(data_exp_str, "%Y-%m-%d")
-            
+            data_criacao = datetime.strptime(data_criacao_str, "%Y-%m-%d") if data_criacao_str else None
+
             if datetime.now() > data_exp:
                 return False, "Esta chave já está expirada."
                 
             # Se passou em tudo, atualiza o modelo
             self.config.licenca.chave = chave_texto
             self.config.licenca.hwid_vinculado = hwid_chave
+            self.config.licenca.data_criacao = data_criacao
             self.config.licenca.data_expiracao = data_exp
             self.config.licenca.ativa = True
             

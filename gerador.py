@@ -15,14 +15,15 @@ def obter_hwid():
     except Exception:
         return "HWID_DESCONHECIDO"
 
-def gerar_chave(dias_validade=30):
+def gerar_chave(dias_validade=1):
     hwid = obter_hwid()
-    # Cria uma data de expiração para o futuro (ex: 30 dias a partir de hoje)
+    data_criacao = datetime.now().strftime("%Y-%m-%d")
     data_exp = (datetime.now() + timedelta(days=dias_validade)).strftime("%Y-%m-%d")
     
     # Monta o payload exatamente como o AuthService espera
     payload = {
         "hwid": hwid,
+        "iat": data_criacao,
         "exp": data_exp
     }
     
@@ -38,6 +39,7 @@ def gerar_chave(dias_validade=30):
     print("GERADOR DE LICENÇA DO WATCHDOGAPP")
     print("="*50)
     print(f"HWID Vinculado: {hwid}")
+    print(f"Criada em:      {data_criacao}")
     print(f"Válida até:     {data_exp}")
     print("-" * 50)
     print("COPIE A CHAVE ABAIXO:")
