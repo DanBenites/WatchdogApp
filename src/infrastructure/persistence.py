@@ -18,7 +18,7 @@ CONFIG_LEGADA = os.path.join(pasta_config, "config_watchdog.json")
 class PersistenceRepository:
     @staticmethod
     def salvar(config: AppConfig):
-        dt_criacao = config.licenca.data_criacao.isoformat() if config.licenca.data_criacao else None
+        dt_ativacao = config.licenca.data_ativacao.isoformat() if config.licenca.data_ativacao else None
         dt_expiracao = config.licenca.data_expiracao.isoformat() if config.licenca.data_expiracao else None
 
         dados = {
@@ -37,7 +37,7 @@ class PersistenceRepository:
             "licenca": {
                 "chave": config.licenca.chave,
                 "hwid_vinculado": config.licenca.hwid_vinculado,
-                "data_criacao": dt_criacao,
+                "data_ativacao": dt_ativacao,
                 "data_expiracao": dt_expiracao,
                 "ativa": config.licenca.ativa
             }
@@ -94,8 +94,10 @@ class PersistenceRepository:
                 config.licenca.hwid_vinculado = l_dados.get("hwid_vinculado")
                 config.licenca.ativa = l_dados.get("ativa", False)
                 
-                if l_dados.get("data_criacao"):
-                    config.licenca.data_criacao = datetime.fromisoformat(l_dados.get("data_criacao"))
+                l_ativacao = l_dados.get("data_ativacao") or l_dados.get("data_criacao")
+                if l_ativacao:
+                    config.licenca.data_ativacao = datetime.fromisoformat(l_ativacao)
+
                 if l_dados.get("data_expiracao"):
                     config.licenca.data_expiracao = datetime.fromisoformat(l_dados.get("data_expiracao"))
                     

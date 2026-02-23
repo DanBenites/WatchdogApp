@@ -154,14 +154,16 @@ class WatchdogApp(ctk.CTk):
                 self.tray_handler.criar_icone()
                 SystemUtils.enviar_notificacao_windows("WatchdogApp", "Licença expirada.")
             else:
-                self.deiconify()
-                self.exibir_overlay_licenca()
+                self.after(0, self._mostrar_janela_safe)
+                # self.deiconify()
+                self.after(100, self.exibir_overlay_licenca)
             return
 
         if self.config_data.minimizar_para_tray and self.iniciado_pelo_sistema:
             if self.tray_handler: self.tray_handler.criar_icone()
         else:
-            self.deiconify()
+            self.after(0, self._mostrar_janela_safe)
+            # self.deiconify()
             
         if self.config_data.persistir_monitoramento and self.config_data.monitoramento_ativo_no_fechamento:
             self.after(self.config_data.delay_inicializacao * 1000, self._executar_automacao)

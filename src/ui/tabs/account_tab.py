@@ -1,3 +1,5 @@
+import threading
+
 import customtkinter as ctk
 from tkinter import messagebox
 from ..colors import AppColors
@@ -143,12 +145,32 @@ class AccountTab(ctk.CTkFrame):
         # --- RODAPÉ DO CONTAINER ---
         self.footer = ctk.CTkFrame(self.container, fg_color=AppColors.BRIGHT_SNOW, corner_radius=6, height=40)
         self.footer.grid(row=1, column=0, columnspan=2, sticky="ew", padx=2, pady=2)
-        
-        self.footer.grid_columnconfigure(0, weight=1)
-        self.footer.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(self.footer, text="Status do Servidor: Online", font=("Arial", 11, "bold"), text_color="#2e7d32").grid(row=0, column=0, padx=10, pady=8, sticky="w")
-        ctk.CTkLabel(self.footer, text="Versão: 1.0.0", font=("Arial", 11), text_color="gray").grid(row=0, column=1, padx=10, pady=8, sticky="e")
+        self.footer.grid_columnconfigure(2, weight=1) 
+
+        ctk.CTkLabel(
+            self.footer, 
+            text="Status do Servidor:", 
+            font=("Arial", 11, "bold"), 
+            text_color="gray"
+        ).grid(row=0, column=0, padx=(10, 2), pady=8, sticky="w")
+
+        self.lbl_status_servidor = ctk.CTkLabel(
+            self.footer, 
+            text="Procurando...", 
+            font=("Arial", 11, "bold"), 
+            text_color=AppColors.GREEN
+        )
+        self.lbl_status_servidor.grid(row=0, column=1, padx=(0, 10), pady=8, sticky="w")
+
+        ctk.CTkFrame(self.footer, fg_color=AppColors.TRANSPARENT, height=1).grid(row=0, column=2, sticky="ew")
+
+        ctk.CTkLabel(
+            self.footer, 
+            text="Versão: 1.0.0", 
+            font=("Arial", 11), 
+            text_color="gray"
+        ).grid(row=0, column=3, padx=10, pady=8, sticky="e")
 
         # --- DATAS DE VALIDADE ---
         self.data_account = ctk.CTkFrame(self, fg_color="white", border_color=AppColors.PLATINUM, border_width=2, corner_radius=8)
@@ -159,9 +181,9 @@ class AccountTab(ctk.CTkFrame):
         
         self.frame_data_account.grid_columnconfigure((2,5), weight=1)
 
-        ctk.CTkLabel(self.frame_data_account, text="Criado em: ", font=("Arial", 12, "bold"), text_color=AppColors.NIGHT).grid(row=0, column=0, sticky="w")
-        self.lbl_criada = ctk.CTkLabel(self.frame_data_account, text="Não encontrado", font=("Arial", 12, "normal"), text_color=AppColors.NIGHT)
-        self.lbl_criada.grid(row=0, column=1, sticky="w")
+        ctk.CTkLabel(self.frame_data_account, text="Ativada em: ", font=("Arial", 12, "bold"), text_color=AppColors.NIGHT).grid(row=0, column=0, sticky="w")
+        self.lbl_ativada = ctk.CTkLabel(self.frame_data_account, text="Não encontrado", font=("Arial", 12, "normal"), text_color=AppColors.NIGHT)
+        self.lbl_ativada.grid(row=0, column=1, sticky="w")
 
         ctk.CTkLabel(self.frame_data_account, text="Expira em: ", font=("Arial", 12, "bold"), text_color=AppColors.NIGHT).grid(row=0, column=3, sticky="w")
         self.lbl_expira = ctk.CTkLabel(self.frame_data_account, text="Não encontrado", font=("Arial", 12, "normal"), text_color=AppColors.NIGHT)
@@ -171,6 +193,10 @@ class AccountTab(ctk.CTkFrame):
 
     def _carregar_dados(self):
         """ Preenche os campos baseado no status da licença atual """
+
+        self.lbl_status_servidor.configure(text="Verificando...", text_color=AppColors.YELLOW)
+        threading.Thread(target=self._verificar_servidor_async, daemon=True).start()
+        
         if self.config.licenca.ativa and self.auth_service.verificar_status_atual():
             # Máscara de Chave (Mostra os últimos 6)
             chave_real = self.config.licenca.chave
@@ -184,16 +210,16 @@ class AccountTab(ctk.CTkFrame):
             self.lbl_mensagem.configure(text="Sua licença está ativa.", text_color="#2e7d32")
             
             # Preenche datas
-            dt_criacao = self.config.licenca.data_criacao
+            dt_ativacao = self.config.licenca.data_ativacao
             dt_exp = self.config.licenca.data_expiracao
             
-            self.lbl_criada.configure(text=dt_criacao.strftime("%d/%m/%Y") if dt_criacao else "Desconhecida")
+            self.lbl_ativada.configure(text=dt_ativacao.strftime("%d/%m/%Y") if dt_ativacao else "Desconhecida")
             self.lbl_expira.configure(text=dt_exp.strftime("%d/%m/%Y") if dt_exp else "---")
         else:
             self._definir_estado_chave("", readonly=False)
             self.btn_login.configure(text="Confirmar")
             self.lbl_mensagem.configure(text="Informe sua chave de acesso para liberar o app.", text_color=AppColors.NIGHT)
-            self.lbl_criada.configure(text="Não Encontrado")
+            self.lbl_ativada.configure(text="Não Encontrado")
             self.lbl_expira.configure(text="Não Encontrado")
 
     def _definir_estado_chave(self, texto, readonly=False):
@@ -261,3 +287,19 @@ class AccountTab(ctk.CTkFrame):
             self.entry_access_key.insert(0, texto_colado)
         except Exception:
             pass
+    
+    def _verificar_servidor_async(self):
+        """ Executa em segundo plano para não travar a UI """
+        is_online = self.auth_service.testar_conexao_servidor()
+        
+        # O CustomTkinter exige que as atualizações visuais voltem para a Thread principal
+        if is_online:
+            self.after(0, lambda: self.lbl_status_servidor.configure(
+                text="Online", 
+                text_color=AppColors.GREEN
+            ))
+        else:
+            self.after(0, lambda: self.lbl_status_servidor.configure(
+                text="Offline", 
+                text_color=AppColors.FLAG_RED
+            ))
