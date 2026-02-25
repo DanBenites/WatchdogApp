@@ -5,6 +5,7 @@ import subprocess
 import hashlib
 import hmac
 import requests
+import re
 from datetime import datetime, timedelta
 
 from ..domain.models import LicencaInfo
@@ -15,10 +16,10 @@ class AuthService:
         self.config = config_data
         self.SECRET_KEY_APP = "*9|#I1u93q3vq=s=!WU~Fr9I-g-4oTG("
         self.WEBHOOK_URL = "https://n8n.vttk.cloud/webhook/validar-licenca"
-        self.hwid_atual = self._gerar_novo_hwid()
+        self.hwid_atual = self.get_hwid() # Renomeado para seguir o padrão do gerador
 
-    def _gerar_novo_hwid(self) -> str:
-        """ Novo método de HWID baseado em SHA256 (Placa Mãe + CPU) """
+    def get_hwid(self) -> str:
+        """ Coleta de IDs (Placa-mãe + CPU no Windows / machine-id no Linux) """
         try:
             if platform.system() == "Windows":
                 m_board = subprocess.check_output('wmic baseboard get serialnumber', shell=True).decode().split('\n')[1].strip()
@@ -35,14 +36,53 @@ class AuthService:
     def obter_hwid_maquina(self) -> str:
         return self.hwid_atual
 
-    def _gerar_assinatura(self, texto_base: str, hwid: str) -> str:
-        """ Gera assinatura HMAC-SHA256 padrão para online e offline """
-        mensagem = f"{texto_base}{hwid}"
+    def validar_formato_chave(self, chave: str) -> bool:
+        """ Valida a estrutura da chave inserida usando Regex """
+        regex_chave = r"^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$"
+        if isinstance(chave, str) and re.match(regex_chave, chave.upper()):
+            return True
+        return False
+
+    def gerar_assinatura(self, chave: str, hwid: str, secret_key: str) -> str:
+        """ Gera a assinatura HMAC-SHA256 combinando a chave e o hwid. """
+        mensagem = f"{chave}{hwid}"
         return hmac.new(
-            self.SECRET_KEY_APP.encode('utf-8'), 
+            secret_key.encode('utf-8'), 
             mensagem.encode('utf-8'), 
             hashlib.sha256
         ).hexdigest()
+
+    def verificar_acesso(self, chave_usuario: str, rotina: bool = False) -> dict:
+        """ Comunica com backend para validar a licença. """
+        # Ignora a validação de formato se for um ping de rotina
+        if not rotina and not self.validar_formato_chave(chave_usuario):
+            return {"status": "erro", "motivo": "formato_invalido"}
+
+        url = self.WEBHOOK_URL
+        assinatura = self.gerar_assinatura(chave_usuario, self.hwid_atual, self.SECRET_KEY_APP)
+
+        payload = {
+            "chave": chave_usuario,
+            "hwid": self.hwid_atual,
+            "signature": assinatura
+        }
+        
+        if rotina:
+            payload["rotina"] = True
+
+        try:
+            # Timeout de 10 segundos para não travar o app se o servidor cair
+            response = requests.post(url, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json() # Sucesso (Ativa)
+            elif response.status_code == 403:
+                return {"status": "erro", "motivo": "bloqueado_ou_expirado"}
+            else:
+                return {"status": "erro", "motivo": "servidor_instavel"}
+                
+        except requests.exceptions.RequestException:
+            return {"status": "erro", "motivo": "sem_conexao"}
 
     def validar_chave_inserida(self, chave_texto: str) -> tuple[bool, str]:
         """ Roteador: Decide se é uma chave Master ou Cliente Online """
@@ -52,8 +92,29 @@ class AuthService:
         if chave_texto.startswith("WDAM-"):
             return self._validar_chave_master(chave_texto)
         
-        # 2. Rota Padrão (Webhook n8n)
-        return self._validar_chave_online(chave_texto)
+        # 2. Rota Padrão (Webhook n8n) - Agora usa o verificar_acesso padronizado
+        resposta = self.verificar_acesso(chave_texto)
+        
+        if "status" in resposta and resposta["status"] == "erro":
+            # Converte o motivo do dicionário para a mensagem final para a UI
+            mensagens_erro = {
+                "formato_invalido": "Formato de chave inválido. Use XXXX-XXXX-XXXX-XXXX.",
+                "bloqueado_ou_expirado": "Acesso bloqueado ou chave revogada.",
+                "servidor_instavel": "Falha no servidor. Tente novamente mais tarde.",
+                "sem_conexao": "Sem conexão com o servidor. Verifique sua internet."
+            }
+            return False, mensagens_erro.get(resposta["motivo"], "Erro desconhecido na validação.")
+        
+        # Sucesso
+        data_exp_str = resposta.get("expira_em") 
+        if data_exp_str:
+            # Corta a string no "T" e pega apenas a parte da data (YYYY-MM-DD)
+            data_limpa = data_exp_str.split('T')[0]
+            data_exp = datetime.strptime(data_limpa, "%Y-%m-%d")
+            self._salvar_licenca_ativa(chave_texto, self.hwid_atual, data_exp)
+            return True, "Licença ativada com sucesso!"
+        else:
+            return False, "Erro no servidor: Data de expiração não informada."
 
     def _validar_chave_master(self, chave_texto: str) -> tuple[bool, str]:
         """ Validação 100% offline e com assinatura local """
@@ -73,14 +134,15 @@ class AuthService:
                 return False, "Esta chave pertence a outro computador."
                 
             data_exp = datetime.strptime(data_exp_str, "%Y-%m-%d")
-            if datetime.now() > data_exp:
+            
+            if datetime.now().date() > data_exp.date():
                 return False, "Esta chave master já está expirada."
 
-            # Validação criptográfica da chave master
+            # Validação criptográfica da chave master usando a função centralizada
             texto_base = f"{hwid_chave}{data_exp_str}"
-            assinatura_esperada = self._gerar_assinatura(texto_base, hwid_chave)
+            assinatura_esperada = self.gerar_assinatura(texto_base, hwid_chave, self.SECRET_KEY_APP)
             
-            # hmac.compare_digest previne ataques de tempo (timing attacks)
+            # hmac.compare_digest previne ataques de tempo
             if not hmac.compare_digest(sig_chave, assinatura_esperada):
                 return False, "Assinatura da chave master é inválida."
             
@@ -89,39 +151,6 @@ class AuthService:
 
         except Exception as e:
             return False, "Chave Master corrompida."
-
-    def _validar_chave_online(self, chave_texto: str) -> tuple[bool, str]:
-        """ Requisição para o Webhook com tratamento de timeout """
-        assinatura = self._gerar_assinatura(chave_texto, self.hwid_atual)
-        payload = {
-            "chave": chave_texto,
-            "hwid": self.hwid_atual,
-            "signature": assinatura
-        }
-
-        try:
-            response = requests.post(self.WEBHOOK_URL, json=payload, timeout=10)
-            
-            if response.status_code == 200:
-                dados = response.json()
-                
-                # Se o seu n8n retornar a data limite, pegamos ela. Se não, damos 30 dias de backup
-                data_exp_str = dados.get("expiracao") 
-                if data_exp_str:
-                    data_exp = datetime.strptime(data_exp_str, "%Y-%m-%d")
-                else:
-                    data_exp = datetime.now() + timedelta(days=30) 
-
-                self._salvar_licenca_ativa(chave_texto, self.hwid_atual, data_exp)
-                return True, "Licença ativada com sucesso!"
-                
-            elif response.status_code == 403:
-                return False, "Acesso bloqueado ou chave revogada."
-            else:
-                return False, f"Falha no servidor ({response.status_code}). Contate o suporte."
-
-        except requests.exceptions.RequestException:
-            return False, "Sem conexão com o servidor. Verifique sua internet para ativar."
 
     def _salvar_licenca_ativa(self, chave: str, hwid: str, data_exp: datetime):
         """ Salva na memória e no disco (.dat) """
@@ -135,72 +164,85 @@ class AuthService:
 
     def verificar_status_atual(self) -> bool:
         """ Rodado em background pelo programa constantemente """
-        if not self.config.licenca.ativa or not self.config.licenca.chave:
+        if not self.config.licenca.chave:
             return False
             
         if self.config.licenca.hwid_vinculado != self.hwid_atual:
             self._bloquear_licenca()
             return False
 
-        if self.config.licenca.data_expiracao and datetime.now() > self.config.licenca.data_expiracao:
-            self._bloquear_licenca()
-            return False
-        
-        # Se for a chave Master (rota obscura), não checa webhook e assume como válida
+        # 1. Rota Master (Offline)
         if self.config.licenca.chave.startswith("WDAM-"):
-            return True
-
-        # Rotina de verificação no Webhook (Ping em background)
-        assinatura = self._gerar_assinatura(self.config.licenca.chave, self.hwid_atual)
-        payload = {
-            "chave": self.config.licenca.chave,
-            "hwid": self.hwid_atual,
-            "signature": assinatura,
-            "rotina": True # Identificador para seu n8n saber que é só um ping de checagem
-        }
-
-        try:
-            # Timeout curto de 5s para não travar a UI do usuário
-            response = requests.post(self.WEBHOOK_URL, json=payload, timeout=5)
-            
-            if response.status_code == 200:
-                # Sucesso: Renova a data do último check-in
-                self.config.licenca.data_criacao = datetime.now()
-                PersistenceRepository.salvar(self.config)
-                return True
-                
-            elif response.status_code == 403: 
-                # Chave revogada por você lá no n8n -> Bloqueia o App na hora
+            if self.config.licenca.data_expiracao and datetime.now().date() > self.config.licenca.data_expiracao.date():
                 self._bloquear_licenca()
                 return False
-                
-        except requests.exceptions.RequestException:
-            # Caiu aqui: Sem internet ou n8n fora do ar
-            # Aplica a regra de carência de 48 horas
-            ultimo_checkin = self.config.licenca.data_ativacao or datetime.now()
-            limite_carencia = ultimo_checkin + timedelta(hours=48)
+            return True
+
+        # 2. Rota Online: Sempre tenta o webhook PRIMEIRO usando a função padronizada
+        resultado = self.verificar_acesso(self.config.licenca.chave, rotina=True)
+
+        if "status" not in resultado or resultado.get("status") != "erro":
+            # Sucesso
+            nova_exp_str = resultado.get("expira_em")
+            if nova_exp_str:
+                # Corta a string no "T" e pega apenas a data
+                nova_data_limpa = nova_exp_str.split('T')[0]
+                nova_exp = datetime.strptime(nova_data_limpa, "%Y-%m-%d")
+                self.config.licenca.data_expiracao = nova_exp
             
-            if datetime.now() <= limite_carencia:
-                return True # Internet caiu, mas está dentro das 48h (Permite uso)
-            else:
-                self._bloquear_licenca() # Estourou as 48h sem falar com o servidor
-                return False
-                
-        return True
+            self.config.licenca.data_ativacao = datetime.now()
+            self.config.licenca.ativa = True
+            PersistenceRepository.salvar(self.config)
+            return True
+            
+        elif resultado.get("motivo") == "bloqueado_ou_expirado":
+            self._bloquear_licenca()
+            return False
+            
+        elif resultado.get("motivo") in ["sem_conexao", "servidor_instavel"]:
+            # Deixa passar para a avaliação offline de carência
+            pass
+        else:
+            # Erro de formato salvo (improvável, mas protegido)
+            self._bloquear_licenca()
+            return False
+            
+        # 3. Avaliação Offline (Sem internet ou n8n fora do ar)
+        if self.config.licenca.data_expiracao and datetime.now().date() > self.config.licenca.data_expiracao.date():
+            self._bloquear_licenca()
+            return False
+            
+        ultimo_checkin = self.config.licenca.data_ativacao or datetime.now()
+        limite_carencia = ultimo_checkin + timedelta(hours=48)
+        
+        if datetime.now() <= limite_carencia:
+            return True 
+        else:
+            self._bloquear_licenca() 
+            return False
 
     def _bloquear_licenca(self):
-        """ Helper para revogar e salvar no disco """
-        self.config.licenca.ativa = False
-        PersistenceRepository.salvar(self.config)
+        """ Helper para revogar e salvar no disco (apenas se houver mudança) """
+        if self.config.licenca.ativa:
+            self.config.licenca.ativa = False
+            PersistenceRepository.salvar(self.config)
     
     def testar_conexao_servidor(self) -> bool:
         """ Faz um ping rápido apenas para verificar se o servidor n8n está de pé """
         try:
-            # Usamos um timeout bem curto (3s). Apenas para ver se o servidor web responde.
-            # Mesmo que o webhook exija POST, um GET ou OPTIONS retornará um status HTTP (ex: 404, 405),
-            # o que prova que a rede/servidor estão Online.
             requests.options(self.WEBHOOK_URL, timeout=3)
             return True
         except requests.exceptions.RequestException:
-            # Se der timeout ou erro de DNS, o servidor está realmente inacessível/offline
             return False
+    
+    def is_licenca_ativa(self) -> bool:
+        if not self.config.licenca.ativa or not self.config.licenca.chave:
+            return False
+            
+        if self.config.licenca.hwid_vinculado != self.hwid_atual:
+            return False
+
+        if self.config.licenca.data_expiracao and datetime.now().date() > self.config.licenca.data_expiracao.date():
+            return False
+            
+        return True
