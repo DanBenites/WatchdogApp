@@ -1,60 +1,146 @@
 import sys
 import os
 import threading
+from tkinter import messagebox
 import customtkinter as ctk
 from datetime import datetime
 
-# Camadas
-from ..domain.models import AppConfig
-from ..infrastructure.persistence import PersistenceRepository
-from ..infrastructure.system_utils import SystemUtils
-from ..infrastructure.icon_manager import IconeManager
-from ..infrastructure.log_manager import LogManager
-from ..services.monitor_engine import WatchdogEngine
-
-# Componentes UI Refatorados
+# Componentes
+from .components.license_overlay import LicenseOverlay
 from .components.splash_screen import SplashScreen
-from .components.tray_handler import TrayHandler
+from .components.sidebar import Sidebar  # <--- Novo componente
+
+# Tabs
 from .tabs.monitor_tab import MonitorTab
 from .tabs.config_tab import ConfigTab
 from .tabs.log_tab import LogTab
+from .tabs.account_tab import AccountTab
+from .colors import AppColors
+
+from ..infrastructure.system_utils import SystemUtils
+from ..infrastructure.persistence import PersistenceRepository
 
 class WatchdogApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, config_data, log_manager, icon_manager, auth_service):
         super().__init__()
-        self.title("WatchdogApp - Petrosoft")
+        self.title("WatchdogApp")
         self.geometry("950x650")
         
-        # 1. Configuração Inicial
+        # Injeção de Dependências
+        self.config_data = config_data
+        self.log_manager = log_manager
+        self.icon_manager = icon_manager
+        self.auth_service = auth_service
+        
+        self.engine = None
+        self.tray_handler = None
+        self.overlay_frame = None 
+        
         self._configurar_icone_janela()
         self.iniciado_pelo_sistema = "--startup" in sys.argv
-        
-        # 2. Inicialização de Serviços
-        self.config_data = PersistenceRepository.carregar()
-        self.log_manager = LogManager()
-        self.icon_manager = IconeManager()
-        self.engine = WatchdogEngine(self.config_data, self.registrar_log)
-        self.tray_handler = TrayHandler(self) # Passa 'self' para o handler controlar a janela
 
-        # 3. Limpeza Logs
         threading.Thread(target=self.log_manager.limpar_antigos, args=(self.config_data.dias_log,), daemon=True).start()
 
+        # Layout Principal
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        # 1. Sidebar (Barra Lateral Refatorada)
+        self.sidebar = Sidebar(self, on_navigate_callback=self._navegar)
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+
+        # 2. Área de Conteúdo
+        self.content_frame = ctk.CTkFrame(self, corner_radius=0, fg_color=AppColors.BRIGHT_SNOW)
+        self.content_frame.grid(row=0, column=1, sticky="nsew")
         
-        # 5. Construir Interface (Abas)
-        self._construir_abas()
+        self.content_frame.grid_columnconfigure(0, weight=1)
+        self.content_frame.grid_rowconfigure(0, weight=1)
 
-        # 6. Carregar Logs Anteriores
-        historico = self.log_manager.ler_conteudo_dia()
-        if historico: self.tab_log.adicionar_linha(historico)
+    def set_engine(self, engine):
+        self.engine = engine
+        self.engine.callback_licenca_expirada = self._ao_licenca_expirar
+        self._inicializar_views()
 
-        # 4. Iniciar Splash (Esconde janela)
+    def set_tray_handler(self, tray_handler):
+        self.tray_handler = tray_handler
+
+    def _inicializar_views(self):
+        self.view_monitor = MonitorTab(self.content_frame, self.engine, self.config_data, self.icon_manager, self.registrar_log, self)
+        self.view_config = ConfigTab(self.content_frame, self.engine, self.config_data, PersistenceRepository, self.registrar_log, self.log_manager)
+        self.view_logs = LogTab(self.content_frame, self.log_manager)
+        self.view_account = AccountTab(self.content_frame, self.config_data, self.auth_service, self.icon_manager, self)
+
+        # Estado Inicial
+        self.sidebar.definir_selecao("Monitor")
+        self._navegar("Monitor")
+
+        historico = self.log_manager.ler_todo_historico()
+        if historico: 
+            self.view_logs.adicionar_linha(historico)
+
+    def _navegar(self, nome_tela):
+        """ Roteador central de navegação """
+        # Esconde todas
+        self.view_monitor.grid_forget()
+        self.view_logs.grid_forget()
+        self.view_config.grid_forget()
+        self.view_account.grid_forget()
+
+        # Mostra a escolhida
+        if nome_tela == "Monitor":
+            self.view_monitor.grid(row=0, column=0, sticky="nsew")
+        elif nome_tela == "Logs":
+            self.view_logs.grid(row=0, column=0, sticky="nsew")
+            if hasattr(self.view_logs, 'start_log_stream'): 
+                self.view_logs.start_log_stream()
+        elif nome_tela == "Configurações":
+            self.view_config.grid(row=0, column=0, sticky="nsew")
+        elif nome_tela == "Conta":
+            self.view_account.grid(row=0, column=0, sticky="nsew")
+
+    def run(self):
         self.withdraw()
         if self.iniciado_pelo_sistema:
             self._pos_splash_callback() 
         else:
             self.splash = SplashScreen(self, self.config_data, self._pos_splash_callback)
             self.splash.exibir()
+        self.mainloop()
 
+    # --- LÓGICA DE LICENÇA E UI ---
+    def exibir_overlay_licenca(self):
+        if self.overlay_frame and self.overlay_frame.winfo_exists(): return
+        if self.state() != "normal": self._mostrar_janela_safe()
+            
+        self.overlay_frame = LicenseOverlay(
+            self, 
+            self.auth_service, 
+            self.config_data,
+            self.icon_manager, # <--- Passando o gerenciador de ícones
+            on_success_callback=self._ao_licenca_ativada_sucesso,
+            on_close_callback=lambda: None
+        )
+        # Reduzi o tamanho relativo de 0.6 para 0.5 (ou você pode trocar para width=450, height=350 fixos)
+        self.overlay_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.5, relheight=0.55)
+
+    def _ao_licenca_ativada_sucesso(self, msg):
+        self.view_monitor.desbloquear_por_licenca()
+        if hasattr(self, 'view_account'):
+            self.view_account._carregar_dados()
+        if self.tray_handler: self.tray_handler.atualizar_icone()
+        self.registrar_log("✅ Nova chave de acesso validada com sucesso.")
+        messagebox.showinfo("Sucesso", msg)
+
+    def _ao_licenca_expirar(self):
+        if self.config_data.minimizar_para_tray and self.tray_handler:
+            self.tray_handler.atualizar_icone()
+        self.after(0, self._processar_bloqueio_ui)
+
+    def _processar_bloqueio_ui(self):
+        if hasattr(self, 'view_monitor'): self.view_monitor.bloquear_por_licenca()
+        if self.state() == "normal": self.exibir_overlay_licenca()
+
+    # --- HELPERS ---
     def _configurar_icone_janela(self):
         try:
             caminho = SystemUtils.resource_path(os.path.join("assets/icons", "app_icon.ico"))
@@ -62,98 +148,47 @@ class WatchdogApp(ctk.CTk):
         except: pass
 
     def _pos_splash_callback(self):
-        """ Chamado quando a splash termina """
-        minimizar = self.config_data.minimizar_para_tray
-        
-        if minimizar and self.iniciado_pelo_sistema:
-            self.tray_handler.criar_icone()
-            self.registrar_log("ℹ️ Iniciado na bandeja (Boot do Sistema).")
-        elif minimizar and not self.iniciado_pelo_sistema:
-            self.deiconify() # Usuário abriu, mostra janela
+        if not self.auth_service.verificar_status_atual():
+            self._processar_bloqueio_ui()
+            if self.iniciado_pelo_sistema and self.config_data.minimizar_para_tray and self.tray_handler:
+                self.tray_handler.criar_icone()
+                SystemUtils.enviar_notificacao_windows("WatchdogApp", "Licença expirada.")
+            else:
+                self.after(0, self._mostrar_janela_safe)
+                # self.deiconify()
+                self.after(100, self.exibir_overlay_licenca)
+            return
+
+        if self.config_data.minimizar_para_tray and self.iniciado_pelo_sistema:
+            if self.tray_handler: self.tray_handler.criar_icone()
         else:
-            self.deiconify()
+            self.after(0, self._mostrar_janela_safe)
+            # self.deiconify()
             
-        # Automação de Retomada
         if self.config_data.persistir_monitoramento and self.config_data.monitoramento_ativo_no_fechamento:
-            delay = self.config_data.delay_inicializacao
-            self.registrar_log(f"⏳ Aguardando {delay}s para automação...")
-            self.after(delay * 1000, self._executar_automacao)
+            self.after(self.config_data.delay_inicializacao * 1000, self._executar_automacao)
 
     def _executar_automacao(self):
-        # A lógica de automação pode ficar aqui ou ser movida para um 'AutomationService'
-        # Para simplificar, delega para a tab de monitoramento que tem acesso aos controles
-        self.tab_monitor._automacao_inicio_monitoramento() 
-        # Nota: Você precisará mover o método _automacao... para dentro da MonitorTab
+        self.view_monitor._automacao_inicio_monitoramento() 
 
-    def _construir_abas(self):
-        self.tabview = ctk.CTkTabview(self)
-        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Cria as abas no Tabview
-        t_monitor = self.tabview.add("Monitoramento")
-        t_log = self.tabview.add("Logs")
-        t_config = self.tabview.add("Configurações")
-        
-        # Instancia os componentes dentro das abas
-        self.tab_log = LogTab(t_log, self.log_manager)
-        
-        self.tab_config = ConfigTab(
-            t_config, 
-            self.config_data, 
-            PersistenceRepository, 
-            self.registrar_log,
-            self.log_manager
-        )
-        
-        self.tab_monitor = MonitorTab(
-            t_monitor,
-            self.engine,
-            self.config_data,
-            self.icon_manager,
-            self.registrar_log,
-            self
-        )
-        
-        # Layout Pack para preencher as abas
-        self.tab_log.pack(fill="both", expand=True)
-        self.tab_config.pack(fill="both", expand=True)
-        self.tab_monitor.pack(fill="both", expand=True)
-
-    # --- Métodos Públicos para os Componentes ---
-    
     def registrar_log(self, msg, com_hora=True):
-        if com_hora:
-            hora = datetime.now().strftime('%H:%M:%S')
-            msg = f"[{hora}] {msg}"
-            
+        if com_hora: msg = f"[{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}] {msg}"
         self.log_manager.escrever(msg)
-        # Atualiza a UI da aba de log
-        if hasattr(self, 'tab_log'):
-            self.after(0, lambda: self.tab_log.adicionar_linha(msg))
+        if hasattr(self, 'view_logs'): self.after(0, lambda: self.view_logs.adicionar_linha(msg))
 
-    def restaurar_janela(self):
-        """ Chamado pelo TrayHandler """
-        self.after(0, self._mostrar_janela_safe)
-
+    def restaurar_janela(self): self.after(0, self._mostrar_janela_safe)
     def _mostrar_janela_safe(self):
-        self.deiconify()
-        self.state("normal")
-        self.lift()
-        self.focus_force()
+        self.deiconify(); self.state("normal"); self.lift(); self.focus_force()
 
     def encerrar_aplicacao(self):
-        """ Chamado pelo TrayHandler """
-        self.engine.parar()
+        if self.engine: self.engine.parar()
         self.quit()
 
     def _ao_minimizar(self, event):
-        """ Evento de minimizar a janela """
         if str(event.widget) == "." and self.state() == "iconic":
-            if self.config_data.minimizar_para_tray:
-                self.withdraw()
-                self.tray_handler.criar_icone()
+            if self.config_data.minimizar_para_tray and self.tray_handler:
+                self.withdraw(); self.tray_handler.criar_icone()
             
-    # Ligar evento de minimizar
     def mainloop(self, *args, **kwargs):
         self.bind("<Unmap>", self._ao_minimizar)
         super().mainloop(*args, **kwargs)
