@@ -37,6 +37,25 @@ class LogManager:
         except Exception:
             pass # Se der erro na leitura, retorna vazio
         return ""
+    
+    def ler_todo_historico(self):
+        """ Lê todo o histórico de logs de todos os dias disponíveis na pasta """
+        conteudo_completo = []
+        try:
+            padrao = os.path.join(self.log_dir, "log_*.txt")
+            # sorted() garante a leitura cronológica (ex: log_2024-01-01.txt, log_2024-01-02.txt)
+            arquivos = sorted(glob.glob(padrao))
+            
+            for arquivo in arquivos:
+                with open(arquivo, "r", encoding="utf-8") as f:
+                    conteudo = f.read().strip()
+                    if conteudo:
+                        conteudo_completo.append(conteudo)
+                        
+            return "\n\n".join(conteudo_completo)
+        except Exception as e:
+            print(f"Erro ao ler histórico completo: {e}")
+        return ""
 
     def limpar_antigos(self, dias_max):
         # (Mantém o código de limpeza igual ao anterior...)

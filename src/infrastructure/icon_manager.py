@@ -82,7 +82,13 @@ class IconeManager:
             "play": SystemUtils.resource_path(os.path.join("assets", "icons", "play.png")),
             "stop": SystemUtils.resource_path(os.path.join("assets", "icons", "stop.png")),
             "add": SystemUtils.resource_path(os.path.join("assets", "icons", "add.png")),
-            "refresh": SystemUtils.resource_path(os.path.join("assets", "icons", "refresh.png"))
+            "refresh": SystemUtils.resource_path(os.path.join("assets", "icons", "refresh.png")),
+            "close_console": SystemUtils.resource_path(os.path.join("assets", "icons", "close_console.png")),
+            "copy": SystemUtils.resource_path(os.path.join("assets", "icons", "copy.png")),
+            "folder": SystemUtils.resource_path(os.path.join("assets", "icons", "folder.png")),
+            "file_save": SystemUtils.resource_path(os.path.join("assets", "icons", "file_save.png")),
+            "paste": SystemUtils.resource_path(os.path.join("assets", "icons", "paste.png")),
+            "copy_dark": SystemUtils.resource_path(os.path.join("assets", "icons", "copy_dark.png")),
         }
 
         # Carrega cada ícone se o arquivo existir
@@ -90,7 +96,7 @@ class IconeManager:
             if os.path.exists(path):
                 img = Image.open(path)
                 # Criando o objeto CTkImage para ser usado nos botões
-                self._icons[name] = ctk.CTkImage(light_image=img, dark_image=img, size=(20, 20))
+                self._icons[name] = ctk.CTkImage(light_image=img, dark_image=img, size=(16, 16))
             else:
                 print(f"Aviso: Ícone não encontrado em {path}")
                 self._icons[name] = None
