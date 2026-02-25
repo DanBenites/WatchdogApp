@@ -208,9 +208,9 @@ class AccountTab(ctk.CTkFrame):
                 mascara = "******"
             
             self._definir_estado_chave(mascara, readonly=True)
-            self.btn_login.configure(text="Renovar / Atualizar Chave")
+            self.btn_login.configure(text="Renovar Chave")
             
-            if licenca_valida:
+            if self.auth_service.is_licenca_ativa() :
                 self.lbl_mensagem.configure(text="Sua licença está ativa.", text_color="#2e7d32")
             else:
                 self.lbl_mensagem.configure(text="Sua licença expirou! Efetue a renovação.", text_color=AppColors.FLAG_RED)
@@ -254,7 +254,7 @@ class AccountTab(ctk.CTkFrame):
 
     def _acao_botao_principal(self):
         """ Define se o botão atua para Salvar ou para Renovar """
-        if self.btn_login.cget("text") == "Renovar / Atualizar Chave":
+        if self.btn_login.cget("text") == "Renovar Chave":
             # Desbloqueia e mostra a chave real para ele ver e decidir se troca ou mantém
             chave_real = self.config.licenca.chave
             self._definir_estado_chave(chave_real, readonly=False)

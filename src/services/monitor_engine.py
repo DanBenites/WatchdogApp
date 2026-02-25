@@ -73,11 +73,11 @@ class WatchdogEngine:
                 fazer_relatorio_rotina = (agora - ultimo_heartbeat) >= segundos_heartbeat
                 
                 if fazer_relatorio_rotina:
-                    self.log_callback(f"\n{'='*15} CHECAGEM DE ROTINA ({hora_atual_str}) {'='*15}", com_hora=False)
+                    self.log_callback(f"\n{'='*15} CHECAGEM DE ROTINA {'='*15}", com_hora=False)
                     ultimo_heartbeat = agora
 
                     if not self.auth_service.verificar_status_atual():
-                        self.log_callback("❌ ATENÇÃO: A licença de uso expirou!", com_hora=False)
+                        self.log_callback("❌ ATENÇÃO: A licença de uso expirou!", com_hora=True)
                         SystemUtils.enviar_notificacao_windows(
                             "WatchdogApp - Licença Expirada", 
                             "O monitoramento foi interrompido. Insira uma nova chave para continuar."
