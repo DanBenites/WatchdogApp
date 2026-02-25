@@ -92,25 +92,44 @@ class AuthService:
         if chave_texto.startswith("WDAM-"):
             return self._validar_chave_master(chave_texto)
         
-        # 2. Rota Padrão (Webhook n8n) - Agora usa o verificar_acesso padronizado
+        # 2. Rota Padrão (Webhook n8n)
         resposta = self.verificar_acesso(chave_texto)
         
         if "status" in resposta and resposta["status"] == "erro":
-            # Converte o motivo do dicionário para a mensagem final para a UI
+            motivo = resposta.get("motivo")
+            
+            # SE NÃO TIVER INTERNET NA HORA DE INSERIR: Libera provisoriamente por 48h
+            if motivo in ["sem_conexao", "servidor_instavel"]:
+                self.config.licenca.chave = chave_texto
+                self.config.licenca.hwid_vinculado = self.hwid_atual
+                self.config.licenca.data_expiracao = None # Só saberemos quando conectar
+                self.config.licenca.data_ativacao = datetime.now() # Hora que a pessoa inseriu a chave
+                
+                # Se você adicionou o campo de ultimo_checkin conforme conversamos antes, limpe-o:
+                if hasattr(self.config.licenca, 'data_ultimo_checkin'):
+                    self.config.licenca.data_ultimo_checkin = None
+                    
+                self.config.licenca.ativa = True
+                PersistenceRepository.salvar(self.config)
+                return True, "Sem internet. Acesso provisório de 48h liberado."
+
+            # Erros reais (bloqueado, formato)
             mensagens_erro = {
                 "formato_invalido": "Formato de chave inválido. Use XXXX-XXXX-XXXX-XXXX.",
-                "bloqueado_ou_expirado": "Acesso bloqueado ou chave revogada.",
-                "servidor_instavel": "Falha no servidor. Tente novamente mais tarde.",
-                "sem_conexao": "Sem conexão com o servidor. Verifique sua internet."
+                "bloqueado_ou_expirado": "Acesso bloqueado ou chave revogada."
             }
-            return False, mensagens_erro.get(resposta["motivo"], "Erro desconhecido na validação.")
+            return False, mensagens_erro.get(motivo, "Erro desconhecido na validação.")
         
-        # Sucesso
+        # SUCESSO ONLINE
         data_exp_str = resposta.get("expira_em") 
         if data_exp_str:
-            # Corta a string no "T" e pega apenas a parte da data (YYYY-MM-DD)
             data_limpa = data_exp_str.split('T')[0]
             data_exp = datetime.strptime(data_limpa, "%Y-%m-%d")
+            
+            # NOVA TRAVA: Verifica se a máquina do usuário está no futuro burlando a expiração
+            if datetime.now().date() > data_exp.date():
+                return False, "Sua licença já expirou!"
+
             self._salvar_licenca_ativa(chave_texto, self.hwid_atual, data_exp)
             return True, "Licença ativada com sucesso!"
         else:
@@ -178,8 +197,65 @@ class AuthService:
                 return False
             return True
 
-        # 2. Rota Online: Sempre tenta o webhook PRIMEIRO usando a função padronizada
+        # 2. Rota Online
         resultado = self.verificar_acesso(self.config.licenca.chave, rotina=True)
+
+        if "status" not in resultado or resultado.get("status") != "erro":
+            # Sucesso
+            nova_exp_str = resultado.get("expira_em")
+            if nova_exp_str:
+                nova_data_limpa = nova_exp_str.split('T')[0]
+                nova_exp = datetime.strptime(nova_data_limpa, "%Y-%m-%d")
+                
+                # NOVA TRAVA ROTINEIRA: Checa bypass de data local
+                if datetime.now().date() > nova_exp.date():
+                    self._bloquear_licenca()
+                    return False
+                    
+                self.config.licenca.data_expiracao = nova_exp
+            
+            # Registra o sucesso na conexão
+            if hasattr(self.config.licenca, 'data_ultimo_checkin'):
+                self.config.licenca.data_ultimo_checkin = datetime.now()
+            
+            # Garante que temos a data de ativação salva (se foi gerado no passado)
+            if not self.config.licenca.data_ativacao:
+                 self.config.licenca.data_ativacao = datetime.now()
+
+            self.config.licenca.ativa = True
+            PersistenceRepository.salvar(self.config)
+            return True
+            
+        elif resultado.get("motivo") == "bloqueado_ou_expirado":
+            self._bloquear_licenca()
+            return False
+            
+        elif resultado.get("motivo") in ["sem_conexao", "servidor_instavel"]:
+            pass # Sem internet, deixa o código continuar para a verificação offline abaixo
+        else:
+            self._bloquear_licenca()
+            return False
+            
+        # 3. Avaliação Offline (Sem internet ou n8n fora do ar)
+        if self.config.licenca.data_expiracao and datetime.now().date() > self.config.licenca.data_expiracao.date():
+            self._bloquear_licenca()
+            return False
+            
+        # Pega a última vez que validou online OU a data em que inseriu offline
+        ultimo_checkin = getattr(self.config.licenca, 'data_ultimo_checkin', None)
+        if not ultimo_checkin:
+            ultimo_checkin = self.config.licenca.data_ativacao
+            
+        if not ultimo_checkin:
+            ultimo_checkin = datetime.now() # Fallback de segurança
+            
+        limite_carencia = ultimo_checkin + timedelta(hours=48)
+        
+        if datetime.now() <= limite_carencia:
+            return True 
+        else:
+            self._bloquear_licenca() 
+            return False
 
         if "status" not in resultado or resultado.get("status") != "erro":
             # Sucesso
@@ -190,7 +266,7 @@ class AuthService:
                 nova_exp = datetime.strptime(nova_data_limpa, "%Y-%m-%d")
                 self.config.licenca.data_expiracao = nova_exp
             
-            self.config.licenca.data_ativacao = datetime.now()
+            # self.config.licenca.data_ativacao = datetime.now()
             self.config.licenca.ativa = True
             PersistenceRepository.salvar(self.config)
             return True

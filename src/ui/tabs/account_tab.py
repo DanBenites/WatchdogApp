@@ -189,15 +189,17 @@ class AccountTab(ctk.CTkFrame):
         self.lbl_expira = ctk.CTkLabel(self.frame_data_account, text="Não encontrado", font=("Arial", 12, "normal"), text_color=AppColors.NIGHT)
         self.lbl_expira.grid(row=0, column=4, sticky="w")
 
-    # --- LÓGICA DE NEGÓCIO DA ABA ---
+    # --- LÓGICA DE NEGÓCIO DA ABA ---cls
 
     def _carregar_dados(self):
         """ Preenche os campos baseado no status da licença atual """
-
         self.lbl_status_servidor.configure(text="Verificando...", text_color=AppColors.YELLOW)
         threading.Thread(target=self._verificar_servidor_async, daemon=True).start()
         
-        if self.config.licenca.ativa and self.auth_service.verificar_status_atual():
+        possui_chave = bool(self.config.licenca.chave)
+        licenca_valida = self.config.licenca.ativa and self.auth_service.verificar_status_atual()
+
+        if possui_chave:
             # Máscara de Chave (Mostra os últimos 6)
             chave_real = self.config.licenca.chave
             if len(chave_real) > 6:
@@ -206,15 +208,20 @@ class AccountTab(ctk.CTkFrame):
                 mascara = "******"
             
             self._definir_estado_chave(mascara, readonly=True)
-            self.btn_login.configure(text="Renovar Chave")
-            self.lbl_mensagem.configure(text="Sua licença está ativa.", text_color="#2e7d32")
+            self.btn_login.configure(text="Renovar / Atualizar Chave")
+            
+            if licenca_valida:
+                self.lbl_mensagem.configure(text="Sua licença está ativa.", text_color="#2e7d32")
+            else:
+                self.lbl_mensagem.configure(text="Sua licença expirou! Efetue a renovação.", text_color=AppColors.FLAG_RED)
             
             # Preenche datas
             dt_ativacao = self.config.licenca.data_ativacao
             dt_exp = self.config.licenca.data_expiracao
             
             self.lbl_ativada.configure(text=dt_ativacao.strftime("%d/%m/%Y") if dt_ativacao else "Desconhecida")
-            self.lbl_expira.configure(text=dt_exp.strftime("%d/%m/%Y") if dt_exp else "---")
+            self.lbl_expira.configure(text=dt_exp.strftime("%d/%m/%Y") if dt_exp else "Expirada")
+            
         else:
             self._definir_estado_chave("", readonly=False)
             self.btn_login.configure(text="Confirmar")
@@ -247,21 +254,25 @@ class AccountTab(ctk.CTkFrame):
 
     def _acao_botao_principal(self):
         """ Define se o botão atua para Salvar ou para Renovar """
-        if self.btn_login.cget("text") == "Renovar Chave":
-            # Desbloqueia para colar nova chave
-            self._definir_estado_chave("", readonly=False)
+        if self.btn_login.cget("text") == "Renovar / Atualizar Chave":
+            # Desbloqueia e mostra a chave real para ele ver e decidir se troca ou mantém
+            chave_real = self.config.licenca.chave
+            self._definir_estado_chave(chave_real, readonly=False)
             self.btn_login.configure(text="Confirmar")
-            self.lbl_mensagem.configure(text="Cole a nova chave e clique em Confirmar.", text_color=AppColors.NIGHT)
+            self.lbl_mensagem.configure(text="Se você pagou a renovação da mesma chave, apenas clique em Confirmar.\n Senão, cole a nova.", text_color=AppColors.NIGHT)
         else:
             # Tenta validar a chave digitada
             chave = self.entry_access_key.get().strip()
             if not chave:
+                from tkinter import messagebox
                 messagebox.showerror("Erro", "A chave não pode estar vazia.")
                 return
                 
             sucesso, msg = self.auth_service.validar_chave_inserida(chave)
             if sucesso:
+                self.config.licenca.chave = chave # Garante que a chave nova (ou renovada) fique na memória
                 PersistenceRepository.salvar(self.config)
+                from tkinter import messagebox
                 messagebox.showinfo("Sucesso", msg)
                 
                 # Atualiza a UI da aba
@@ -273,6 +284,7 @@ class AccountTab(ctk.CTkFrame):
                 if hasattr(self.app, 'tray_handler') and self.app.tray_handler:
                     self.app.tray_handler.atualizar_icone()
             else:
+                from tkinter import messagebox
                 messagebox.showerror("Erro de Validação", msg)
 
     def _copiar_hwid(self):
