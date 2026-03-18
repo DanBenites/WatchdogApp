@@ -89,6 +89,9 @@ class IconeManager:
             "file_save": SystemUtils.resource_path(os.path.join("assets", "icons", "file_save.png")),
             "paste": SystemUtils.resource_path(os.path.join("assets", "icons", "paste.png")),
             "copy_dark": SystemUtils.resource_path(os.path.join("assets", "icons", "copy_dark.png")),
+            "chevron_left_dark": SystemUtils.resource_path(os.path.join("assets", "icons", "chevron_left_dark.png")),
+            "checkbox_empty": SystemUtils.resource_path(os.path.join("assets", "icons", "checkbox_empty.png")),
+            "checkbox_set": SystemUtils.resource_path(os.path.join("assets", "icons", "checkbox_set.png")),
         }
 
         # Carrega cada ícone se o arquivo existir
