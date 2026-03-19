@@ -30,7 +30,10 @@ class WatchdogProcessEngine:
         # 2. REGRA: SEMPRE ENCERRAR (BLACKLIST)
         if regra_principal == "Sempre Encerrar (Blacklist)":
             if status_real == "Em Execução":
+                state["killed_by_us"] = True # Levanta a placa: "Fomos nós que o matámos!"
                 return "Parar_Forcado", "Processo na Blacklist detetado", pid
+            else:
+                state["killed_by_us"] = False # Baixa a placa quando ele já estiver morto
             return "Nada", "", None
 
         # ==========================================

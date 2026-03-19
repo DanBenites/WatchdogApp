@@ -107,7 +107,7 @@ class WatchdogEngine:
                     if fazer_relatorio_rotina and status_real == "Em Execução":
                          self.log_callback(f"   ✔️  {nome:<20} | Status: OK (Rodando)", com_hora=False)
 
-                    # Logs de Transição Inteligentes
+                    # --- LOGS DE TRANSIÇÃO INTELIGENTES ---
                     if status_real == "Em Execução" and status_ant != "Em Execução":
                         self.log_callback(f"🟢 DETECTADO: {nome} entrou em execução.")
                         
@@ -115,8 +115,10 @@ class WatchdogEngine:
                         state = self.process_engine.get_or_create_state(nome)
                         exit_code = dados.get("exit_code", -1)
                         
-                        if not state.get("killed_by_us", False) and regra != "Sempre Encerrar (Blacklist)":
+                        # Se a flag "killed_by_us" for True, fomos nós que matámos (Blacklist/Limites). O log de Queda é IGNORADO!
+                        if not state.get("killed_by_us", False):
                             if exit_code != 0:
+                                # Nova string para garantir que estamos no código novo
                                 motivo = "SOBRECARGA DO SO" if (global_cpu > 90 or global_ram > 90) else "CRASH / EXTERNO"
                                 self.log_callback(f"🔴 QUEDA: {nome} ({motivo})")
                     
@@ -163,7 +165,7 @@ class WatchdogEngine:
                 timeout = cfg.get("execucao", {}).get("graceful_timeout", 10)
                 ProcessAdapter.encerrar_processo(nome, graceful=True, timeout=timeout)
             elif acao == "Alerta_Critico":
-                self.log_callback(f"❌ [CRÍTICO] {nome} falhou repetidamente. Ações automáticas suspensas!")
+                self.log_callback(f"[CRÍTICO] {nome} falhou repetidamente. Ações automáticas suspensas!")
                 script_path = cfg.get("emergencia", {}).get("script_path", "")
                 if script_path:
                     self.log_callback(f"🔧 A executar script de emergência: {script_path}")
