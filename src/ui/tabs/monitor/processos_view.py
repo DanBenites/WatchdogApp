@@ -11,6 +11,7 @@ from ....services.process_use_cases import OSProcessUseCase
 from ...components.process_properties import ProcessPropertiesWindow
 from ....infrastructure.process_adapter import ProcessAdapter
 from ....domain.process_engine import WatchdogProcessEngine
+from ....infrastructure.system_utils import SystemUtils
 
 class ProcessosView(ctk.CTkFrame):
     """Tabela de Processos Monitorados"""
@@ -82,7 +83,11 @@ class ProcessosView(ctk.CTkFrame):
         self.btn_start.pack(fill="x", pady=(10, 0))
 
     def criar_linha(self, nome, regra, path=None):
-        bg_color = AppColors.BRIGHT_SNOW if len(self.linhas_visuais) % 2 == 0 else AppColors.WHITE
+
+        if regra == "Sempre Encerrar (Blacklist)":
+            bg_color = "#d6d6d6" # Cinza de Blacklist
+        else:
+            bg_color = AppColors.BRIGHT_SNOW if len(self.linhas_visuais) % 2 == 0 else AppColors.WHITE
         
         # A linha agora precisa de uma altura fixa (height=42) para os itens se alinharem dentro
         row = ctk.CTkFrame(self.table_container, fg_color=bg_color, corner_radius=0, height=42)
@@ -96,7 +101,7 @@ class ProcessosView(ctk.CTkFrame):
         lbl_nome.place(relx=0.01, relwidth=0.27, rely=0, relheight=1)
 
         combo_regra = ctk.CTkOptionMenu(
-            row, values=["Não Reiniciar", "Sempre Reiniciar", "Reiniciar se erro Windows"],
+            row, values=["Não Reiniciar", "Sempre Reiniciar", "Reiniciar se erro Windows", "Reinício Condicional", "Sempre Encerrar (Blacklist)"],
             fg_color=AppColors.PLATINUM, text_color=AppColors.NIGHT, button_color=AppColors.PLATINUM,
             command=lambda r, n=nome: self.atualizar_regra(n, r)
         )
@@ -141,6 +146,8 @@ class ProcessosView(ctk.CTkFrame):
             self.linhas_visuais[nome]["combo"].set(self.master_tab.config_data.processos[nome]['regra'])
             return
         self.master_tab.process_use_case.atualizar_regra(nome, nova_regra)
+        # Recalcula as cores na hora em que o usuário muda a combobox!
+        self.recalcular_cores_linhas()
     
     def editar_processo(self, nome):
         """Abre opções avançadas do processo"""
@@ -162,9 +169,19 @@ class ProcessosView(ctk.CTkFrame):
             self.recalcular_cores_linhas()
 
     def recalcular_cores_linhas(self):
-        for index, widget_data in enumerate(self.linhas_visuais.values()):
-            bg_color = AppColors.BRIGHT_SNOW if index % 2 == 0 else AppColors.WHITE
-            widget_data["row"].configure(fg_color=bg_color)
+        index_visivel = 0
+        for nome, widget_data in self.linhas_visuais.items():
+            if widget_data["row"].winfo_ismapped():
+                regra = widget_data["combo"].get()
+                
+                # Se for Blacklist, pinta de cinza. Senão, faz o efeito zebrado.
+                if regra == "Sempre Encerrar (Blacklist)":
+                    bg_color = "#d6d6d6" 
+                else:
+                    bg_color = AppColors.BRIGHT_SNOW if index_visivel % 2 == 0 else AppColors.WHITE
+                    
+                widget_data["row"].configure(fg_color=bg_color)
+                index_visivel += 1
 
     def filtrar_tabela(self, event=None):
         query = self.entry_busca.get().lower()
@@ -205,33 +222,38 @@ class ProcessosView(ctk.CTkFrame):
         AdicionarProcessoModal(self.master_tab, self)
 
     def loop_atualizacao_tabela(self):
-        """Thread que atualiza Status, CPU e RAM com dados reais do SO."""
-        from ....services.process_use_cases import OSProcessUseCase 
-        
+        """Thread ultra-leve: apenas lê os dados já processados pelo Motor."""
         while self.running:
-            nomes_monitorados = list(self.linhas_visuais.keys())
-            
-            if not nomes_monitorados:
-                time.sleep(2)
+            if not self.master_tab.engine.rodando:
+                # Se o motor está desligado, limpa visualmente a tela
+                for nome, widgets in self.linhas_visuais.items():
+                    widgets["cpu"].configure(text="0.0 %")
+                    widgets["ram"].configure(text="0 MB")
+                    widgets["status"].configure(text="Ausente", text_color="gray")
+                time.sleep(1)
                 continue
                 
-            # 1. Lê os dados reais do Windows
-            metricas = OSProcessUseCase.obter_metricas_processos(nomes_monitorados)
+            # Lê a memória partilhada do Motor
+            metrics = getattr(self.master_tab.engine, "latest_metrics", {})
             
             for nome, widgets in self.linhas_visuais.items():
                 try:
-                    dados = metricas.get(nome, {"status": "Ausente", "cpu": 0.0, "ram": 0.0})
-                    status_real = dados["status"]
-                    cfg = self.master_tab.config_data.processos.get(nome, {})
-                    regra = cfg.get("regra", "Não Reiniciar")
+                    # Se não houver dados, exibe Ausente
+                    dados = metrics.get(nome, {"status": "Ausente", "cpu": 0.0, "ram": 0.0, "regra": "Não Reiniciar", "acao_pendente": "Nada"})
                     
-                    # 2. Atualiza a Interface Visual
+                    status_real = dados["status"]
+                    regra = dados["regra"]
+                    acao = dados["acao_pendente"]
+
+                    # --- ATUALIZAÇÃO VISUAL ---
                     if status_real == "Em Execução":
-                        # Se for Blacklist, avisamos visualmente antes de o motor agir
-                        if regra == "Sempre Encerrar (Blacklist)" and self.master_tab.engine.rodando:
+                        if regra == "Sempre Encerrar (Blacklist)":
                             widgets["status"].configure(text="Bloqueando...", text_color="#dc3545")
                         else:
-                            widgets["status"].configure(text="Em Execução", text_color=AppColors.GREEN)
+                            if "Parar" in acao:
+                                widgets["status"].configure(text="Encerrando...", text_color="#dc3545")
+                            else:
+                                widgets["status"].configure(text="Em Execução", text_color=AppColors.GREEN)
                             
                         widgets["cpu"].configure(text=f"{dados['cpu']:.1f} %")
                         widgets["ram"].configure(text=f"{dados['ram']:.0f} MB")
@@ -239,66 +261,20 @@ class ProcessosView(ctk.CTkFrame):
                         widgets["cpu"].configure(text="0.0 %")
                         widgets["ram"].configure(text="0 MB")
                         
-                        if self.master_tab.engine.rodando:
-                            if regra in ["Sempre Reiniciar", "Reiniciar se erro Windows"]:
-                                widgets["status"].configure(text="Reiniciando...", text_color="#ffc107") # Amarelo
-                            elif regra == "Sempre Encerrar (Blacklist)":
-                                widgets["status"].configure(text="Bloqueado", text_color="gray")
-                            else:
-                                widgets["status"].configure(text="Ausente", text_color="gray")
+                        if acao == "Iniciar":
+                            widgets["status"].configure(text="Iniciando...", text_color="#17a2b8")
+                        elif regra in ["Sempre Reiniciar", "Reiniciar se erro Windows", "Reinício Condicional"]:
+                            widgets["status"].configure(text="Reiniciando...", text_color="#ffc107")
+                        elif regra == "Sempre Encerrar (Blacklist)":
+                            widgets["status"].configure(text="Bloqueado", text_color="gray")
                         else:
                             widgets["status"].configure(text="Ausente", text_color="gray")
-
-                    # 3. O CÉREBRO ENTRA EM AÇÃO (Se o Monitoramento estiver INICIADO)
-                    if self.master_tab.engine.rodando:
-                        # Para compatibilidade com a versão anterior do motor que exigia PID
-                        # Como alteramos o Adapter para usar o Nome, passamos o Nome no lugar do PID
-                        dados["pid"] = nome 
-                        
-                        acao, motivo, alvo = self.process_engine.evaluate_process(nome, dados, cfg)
-                        
-                        if acao != "Nada":
-                            self.executar_acao_recuperacao(nome, acao, motivo, alvo, cfg)
                             
-                except Exception as e:
+                except Exception:
                     pass
                     
-            time.sleep(3)
-    
-    def executar_acao_recuperacao(self, nome, acao, motivo, alvo, cfg):
-        """Recebe as ordens do Cérebro e aciona os Músculos (Adapter) numa thread separada"""
-        self.master_tab.log(f"⚡ [AÇÃO] {nome} | Motivo: {motivo} | Ação: {acao}")
-        
-        # Feedback visual rápido na UI
-        widgets = self.linhas_visuais.get(nome)
-        if widgets:
-            if acao == "Iniciar": widgets["status"].configure(text="Iniciando...", text_color="#17a2b8")
-            elif "Parar" in acao: widgets["status"].configure(text="Encerrando...", text_color="#dc3545")
-
-        def task():
-            if acao == "Iniciar":
-                path = cfg.get("path", "")
-                min = cfg.get("execucao", {}).get("minimizado", False)
-                oculto = cfg.get("execucao", {}).get("oculto", False)
-                ProcessAdapter.iniciar_processo(path, minimizado=min, oculto=oculto)
-
-            elif acao == "Parar_Forcado":
-                ProcessAdapter.encerrar_processo(nome, graceful=False)
-
-            elif acao == "Parar_Elegante":
-                timeout = cfg.get("execucao", {}).get("graceful_timeout", 10)
-                ProcessAdapter.encerrar_processo(nome, graceful=True, timeout=timeout)
-
-            elif acao == "Alerta_Critico":
-                self.master_tab.log(f"❌ [CRÍTICO] {nome} falhou repetidamente. Ações automáticas suspensas!")
-                script_path = cfg.get("emergencia", {}).get("script_path", "")
-                if script_path:
-                    self.master_tab.log(f"🔧 A executar script de emergência: {script_path}")
-                    try: subprocess.Popen(script_path, shell=True)
-                    except Exception as e: self.master_tab.log(f"Erro ao executar script: {e}")
-
-        # Roda a tarefa em background para não congelar o painel visual
-        threading.Thread(target=task, daemon=True).start()
+            # Loop da interface muito mais rápido e suave
+            time.sleep(1)
 
     def destroy(self):
         self.running = False

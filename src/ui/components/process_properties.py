@@ -22,7 +22,8 @@ class ProcessPropertiesWindow(ctk.CTkToplevel):
 
         self.cfg = self.master_tab.config_data.processos.get(self.process_name, {})
         self._inicializar_chaves_vazias()
-        self.engine_state = self.processos_view.process_engine.get_or_create_state(self.process_name)
+        self.engine_state = self.master_tab.engine.process_engine.get_or_create_state(self.process_name)
+        
         
         self._build_tabs()
         self._build_footer()
@@ -38,7 +39,9 @@ class ProcessPropertiesWindow(ctk.CTkToplevel):
                 "heartbeat_enabled": False, "heartbeat_timeout": 5, "hb_max_restarts": 3, "hb_reset_dias": 0
             }
         if "emergencia" not in self.cfg:
-            self.cfg["emergencia"] = {"max_falhas": 3, "reset_dias": 0, "script_path": ""}
+            self.cfg["emergencia"] = {"enabled": False, "max_falhas": 3, "reset_dias": 0, "script_path": ""}
+        elif "enabled" not in self.cfg["emergencia"]:
+            self.cfg["emergencia"]["enabled"] = False # Garante retrocompatibilidade
 
     def _create_section_header(self, parent, text, help_text=""):
         frm = ctk.CTkFrame(parent, fg_color="transparent")
@@ -79,11 +82,10 @@ class ProcessPropertiesWindow(ctk.CTkToplevel):
         self._create_section_header(scroll, "Regra Principal de Monitoramento", "Define o comportamento base do Watchdog para este processo.")
         self.cb_regra = ctk.CTkComboBox(
             scroll, width=300, 
-            values=["Não Reiniciar", "Sempre Reiniciar", "Reiniciar se erro Windows", "Sempre Encerrar (Blacklist)"]
+            values=["Não Reiniciar", "Sempre Reiniciar", "Reiniciar se erro Windows", "Reinício Condicional", "Sempre Encerrar (Blacklist)"]
         )
         self.cb_regra.set(self.cfg.get("regra", "Não Reiniciar"))
         self.cb_regra.pack(anchor="w", pady=5)
-
 
         # --- BOTÕES DE RESET ---
         btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -183,9 +185,9 @@ class ProcessPropertiesWindow(ctk.CTkToplevel):
         self.ent_perf_max = ctk.CTkEntry(frm_perf, width=60); self.ent_perf_max.insert(0, str(perf_cfg.get("max_restarts", 3)))
         self.ent_perf_max.grid(row=4, column=1, padx=10, pady=5)
 
-        fails_perf = self.engine_state.get("perf_retry_count", self.engine_state.get("crash_count", 0))
+        fails_perf = self.engine_state.get("perf_retry_count", 0)
         ctk.CTkLabel(frm_perf, text=f"(Falhas atuais: {fails_perf})", text_color="#dc3545" if fails_perf > 0 else "gray", font=("Arial", 11, "italic")).grid(row=4, column=2, padx=5)
-        
+
         ctk.CTkLabel(frm_perf, text="Resetar contador após X dias:").grid(row=5, column=0, padx=10, pady=(5, 10), sticky="w")
         self.ent_perf_reset = ctk.CTkEntry(frm_perf, width=60); self.ent_perf_reset.insert(0, str(perf_cfg.get("reset_dias", 0)))
         self.ent_perf_reset.grid(row=5, column=1, padx=10, pady=(5, 10))
@@ -206,56 +208,44 @@ class ProcessPropertiesWindow(ctk.CTkToplevel):
         self.ent_hb_max = ctk.CTkEntry(frm_hb, width=60); self.ent_hb_max.insert(0, str(perf_cfg.get("hb_max_restarts", 3)))
         self.ent_hb_max.grid(row=2, column=1, padx=10, pady=5)
 
-
-        fails_hb = self.engine_state.get("hb_retry_count", self.engine_state.get("crash_count", 0))
+        fails_hb = self.engine_state.get("hb_retry_count", 0)
         ctk.CTkLabel(frm_hb, text=f"(Falhas atuais: {fails_hb})", text_color="#dc3545" if fails_hb > 0 else "gray", font=("Arial", 11, "italic")).grid(row=2, column=2, padx=5)
-        
+
         ctk.CTkLabel(frm_hb, text="Resetar contador após X dias:").grid(row=3, column=0, padx=10, pady=(5, 10), sticky="w")
         self.ent_hb_reset = ctk.CTkEntry(frm_hb, width=60); self.ent_hb_reset.insert(0, str(perf_cfg.get("hb_reset_dias", 0)))
         self.ent_hb_reset.grid(row=3, column=1, padx=10, pady=(5, 10))
 
         # 3. EMERGÊNCIA (CRASH LOOPS GERAIS)
         self._create_section_header(scroll, "Ações de Emergência (Crash Loops)", "Ações caso o programa caia repetidas vezes por erros próprios.")
-        
-        # Frame principal da seção
         frm_em = ctk.CTkFrame(scroll, fg_color=AppColors.WHITE, corner_radius=5, border_width=1, border_color=AppColors.PLATINUM)
         frm_em.pack(fill="x", pady=5)
-        
-        # Configurando as colunas para que a primeira (labels) tenha um peso consistente
-        frm_em.columnconfigure(0, weight=0)
-        frm_em.columnconfigure(1, weight=0)
-        frm_em.columnconfigure(2, weight=1) # Coluna da contagem de falhas expande
 
-        # --- Linha 0: Max Falhas ---
-        ctk.CTkLabel(frm_em, text="Parar de tentar após X falhas seguidas:").grid(row=0, column=0, padx=(15, 10), pady=10, sticky="w")
-        
-        self.ent_retries = ctk.CTkEntry(frm_em, width=60)
-        self.ent_retries.insert(0, str(em_cfg.get("max_falhas", 3)))
-        self.ent_retries.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+        # --- NOVA CHECKBOX ---
+        self.chk_em_enabled = ctk.BooleanVar(value=em_cfg.get("enabled", False))
+        ctk.CTkCheckBox(frm_em, text="Habilitar Proteção contra Crash Loops", variable=self.chk_em_enabled, fg_color=AppColors.DUSK_BLUE).grid(row=0, column=0, columnspan=3, padx=10, pady=(10, 5), sticky="w")
 
+        ctk.CTkLabel(frm_em, text="Parar de tentar após X falhas seguidas:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        self.ent_retries = ctk.CTkEntry(frm_em, width=60); self.ent_retries.insert(0, str(em_cfg.get("max_falhas", 3)))
+        self.ent_retries.grid(row=1, column=1, padx=10, pady=10)
 
+        # --- CONTADOR EMERGÊNCIA ---
         fails_em = self.engine_state.get("crash_count", 0)
-        ctk.CTkLabel(frm_em, text=f"(Falhas atuais: {fails_em})", text_color="#dc3545" if fails_em > 0 else "gray", font=("Arial", 11, "italic")).grid(row=0, column=2, padx=5)
-        
-       
-        ctk.CTkLabel(frm_em, text="Resetar contagem de falhas após X dias:").grid(row=1, column=0, padx=(15, 10), pady=5, sticky="w")
-        
-        self.ent_reset = ctk.CTkEntry(frm_em, width=60)
-        self.ent_reset.insert(0, str(em_cfg.get("reset_dias", 0)))
-        self.ent_reset.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        ctk.CTkLabel(frm_em, text=f"(Falhas atuais: {fails_em})", text_color="#dc3545" if fails_em > 0 else "gray", font=("Arial", 11, "italic")).grid(row=1, column=2, padx=5)
 
-        ctk.CTkLabel(frm_em, text="Executar Script em caso de Falha Crítica:").grid(row=2, column=0, columnspan=3, padx=(15, 10), pady=(15, 5), sticky="w")
+        ctk.CTkLabel(frm_em, text="Resetar contagem de falhas após X dias:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.ent_reset = ctk.CTkEntry(frm_em, width=60); self.ent_reset.insert(0, str(em_cfg.get("reset_dias", 0)))
+        self.ent_reset.grid(row=2, column=1, padx=10, pady=5)
 
+        ctk.CTkLabel(frm_em, text="Executar Script em caso de Falha Crítica:").grid(row=3, column=0, columnspan=2, padx=10, pady=(10,0), sticky="w")
         frm_script = ctk.CTkFrame(frm_em, fg_color="transparent")
-        frm_script.grid(row=3, column=0, columnspan=3, padx=(15, 15), pady=(0, 15), sticky="ew")
+        frm_script.grid(row=4, column=0, columnspan=3, padx=10, pady=(5, 15), sticky="ew")
         
-        self.ent_script = ctk.CTkEntry(frm_script, placeholder_text="Ex: C:\\Scripts\\alerta_crash.bat")
+        self.ent_script = ctk.CTkEntry(frm_script, width=350, placeholder_text="Ex: C:\\Scripts\\alerta_crash.bat")
         self.ent_script.insert(0, em_cfg.get("script_path", ""))
-        self.ent_script.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.ent_script.pack(side="left", padx=(0, 5))
+        ctk.CTkButton(frm_script, text="📁 Procurar...", width=80, fg_color=AppColors.PLATINUM, text_color=AppColors.NIGHT, hover_color="#e2e2e2", command=self._browse_file).pack(side="left")
         
-        ctk.CTkButton(frm_script, text="📁 Procurar...", width=100, 
-                      fg_color=AppColors.PLATINUM, text_color=AppColors.NIGHT, 
-                      hover_color="#e2e2e2", command=self._browse_file).pack(side="right")
+
     def _browse_file(self):
         filename = filedialog.askopenfilename(title="Selecione o Script", filetypes=(("Scripts", "*.bat *.cmd *.ps1 *.py"), ("Todos", "*.*")))
         if filename:
@@ -296,6 +286,7 @@ class ProcessPropertiesWindow(ctk.CTkToplevel):
             self.cfg["desempenho"]["hb_max_restarts"] = int(self.ent_hb_max.get())
             self.cfg["desempenho"]["hb_reset_dias"] = int(self.ent_hb_reset.get())
 
+            self.cfg["emergencia"]["enabled"] = self.chk_em_enabled.get() # SALVA A CHECKBOX
             self.cfg["emergencia"]["max_falhas"] = int(self.ent_retries.get())
             self.cfg["emergencia"]["reset_dias"] = int(self.ent_reset.get())
             self.cfg["emergencia"]["script_path"] = self.ent_script.get().strip()

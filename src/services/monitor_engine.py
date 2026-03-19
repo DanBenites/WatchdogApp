@@ -1,10 +1,14 @@
+# src/services/monitor_engine.py
 import time
-import subprocess
 import threading
-import os
+import subprocess
 from datetime import datetime
 import psutil
+
 from ..infrastructure.system_utils import SystemUtils
+from ..infrastructure.process_adapter import ProcessAdapter
+from ..domain.process_engine import WatchdogProcessEngine
+from .process_use_cases import OSProcessUseCase
 
 class WatchdogEngine:
     def __init__(self, config, log_callback, auth_service):
@@ -14,6 +18,13 @@ class WatchdogEngine:
         self.rodando = False
         self._thread = None
         self.callback_licenca_expirada = None
+        
+        # 1. O MOTOR HERDA O CÉREBRO
+        self.process_engine = WatchdogProcessEngine()
+        
+        # 2. MEMÓRIA PARTILHADA PARA A UI (A interface vai ler isto em vez de varrer o Windows)
+        self.latest_metrics = {}
+        self.status_anterior_dict = {}
 
     def iniciar(self):
         if self.rodando: return
@@ -31,7 +42,6 @@ class WatchdogEngine:
 
     def _gerar_relatorio_inicial(self, cpu, ram, ativos_agora):
         now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-        
         msg = f"\n{'='*15} MONITORAMENTO INICIADO {'='*15}\n"
         msg += f"📅 Data: {now}\n"
         msg += f"💻 Sistema: CPU {cpu}% | RAM {ram}%\n"
@@ -40,34 +50,35 @@ class WatchdogEngine:
 
         for nome, dados in self.config.processos.items():
             regra = dados.get('regra', 'N/A')
-            is_running = nome.lower() in ativos_agora
-            status_real = "🟢 ATIVO" if is_running else "🔴 PARADO"
-            dados['status'] = "Ativo" if is_running else "Parado"
-            
+            status_real = "🟢 ATIVO" if nome.lower() in ativos_agora else "🔴 PARADO"
             msg += f"   • {nome:<20} | {regra:<20} | {status_real}\n"
         
         msg += f"{'='*54}"
         self.log_callback(msg, com_hora=False)
 
     def _loop(self):
-        processos_alvo = self.config.processos
         ultimo_heartbeat = time.time()
         
-        # Relatório Inicial
         try:
-            cpu, ram = SystemUtils.obter_status_recursos()
-            ativos_agora = {p.info['name'].lower() for p in psutil.process_iter(['name'])}
-            self._gerar_relatorio_inicial(cpu, ram, ativos_agora)
+            global_cpu, global_ram = SystemUtils.obter_status_recursos()
+            metricas_iniciais = OSProcessUseCase.obter_metricas_processos(list(self.config.processos.keys()))
+            ativos_agora = {nome.lower() for nome, m in metricas_iniciais.items() if m["status"] == "Em Execução"}
+            self._gerar_relatorio_inicial(global_cpu, global_ram, ativos_agora)
         except Exception as e:
             self.log_callback(f"⚠️ Erro ao gerar relatório inicial: {e}")
 
         while self.rodando:
             try:
-                cpu, ram = SystemUtils.obter_status_recursos()
-                ativos_agora = {p.info['name'].lower() for p in psutil.process_iter(['name'])}
-                hora_atual_str = datetime.now().strftime('%H:%M:%S')
+                nomes_monitorados = list(self.config.processos.keys())
+                if not nomes_monitorados:
+                    time.sleep(2)
+                    continue
 
-                # --- HEARTBEAT ---
+                # O Motor centraliza a leitura do Windows
+                global_cpu, global_ram = SystemUtils.obter_status_recursos()
+                metricas = OSProcessUseCase.obter_metricas_processos(nomes_monitorados)
+
+                # --- HEARTBEAT / LICENÇA ---
                 segundos_heartbeat = self.config.intervalo_heartbeat * 3600
                 agora = time.time()
                 fazer_relatorio_rotina = (agora - ultimo_heartbeat) >= segundos_heartbeat
@@ -78,61 +89,85 @@ class WatchdogEngine:
 
                     if not self.auth_service.verificar_status_atual():
                         self.log_callback("❌ ATENÇÃO: A licença de uso expirou!", com_hora=True)
-                        SystemUtils.enviar_notificacao_windows(
-                            "WatchdogApp - Licença Expirada", 
-                            "O monitoramento foi interrompido. Insira uma nova chave para continuar."
-                        )
-                        # Avisa a Janela Principal para bloquear tudo
-                        if self.callback_licenca_expirada:
-                            self.callback_licenca_expirada()
-                            
+                        SystemUtils.enviar_notificacao_windows("WatchdogApp - Licença Expirada", "O monitoramento foi interrompido.")
+                        if self.callback_licenca_expirada: self.callback_licenca_expirada()
                         self.parar()
                         break
 
-                for nome, dados in processos_alvo.items():
-                    esta_rodando = nome.lower() in ativos_agora
-                    regra = dados.get('regra', 'Não Reiniciar')
-                    status_anterior = dados.get('status', 'Parado')
+                for nome, cfg in self.config.processos.items():
+                    dados = metricas.get(nome, {"status": "Ausente", "cpu": 0.0, "ram": 0.0})
+                    dados["global_cpu"] = global_cpu
+                    dados["global_ram"] = global_ram
+                    
+                    status_real = dados["status"]
+                    status_ant = self.status_anterior_dict.get(nome, "Ausente")
+                    regra = cfg.get("regra", "Não Reiniciar")
 
-                    # 1. Registro de Rotina (O que faltava no seu código)
-                    if fazer_relatorio_rotina and esta_rodando:
+                    # Logs de Rotina
+                    if fazer_relatorio_rotina and status_real == "Em Execução":
                          self.log_callback(f"   ✔️  {nome:<20} | Status: OK (Rodando)", com_hora=False)
 
-                    # 2. Monitoramento de Mudanças
-                    if esta_rodando:
-                        if status_anterior != "Ativo":
-                            # Removemos o timestamp manual, a UI adiciona
-                            self.log_callback(f"🟢 DETECTADO: {nome} entrou em execução.")
-                            dados['status'] = "Ativo"
-                    else:
-                        if status_anterior == "Ativo":
-                            motivo = "SOBRECARGA" if (cpu > 90 or ram > 90) else "EXTERNO"
-                            self.log_callback(f"🔴 QUEDA: {nome} ({motivo})")
+                    # Logs de Transição Inteligentes
+                    if status_real == "Em Execução" and status_ant != "Em Execução":
+                        self.log_callback(f"🟢 DETECTADO: {nome} entrou em execução.")
                         
-                        dados['status'] = "Parado"
+                    elif status_real != "Em Execução" and status_ant == "Em Execução":
+                        state = self.process_engine.get_or_create_state(nome)
+                        exit_code = dados.get("exit_code", -1)
                         
-                        deve_reiniciar = (regra == "Sempre Reiniciar") or \
-                                         (regra == "Reiniciar se erro Windows" and (cpu > 90 or ram > 90))
-                        
-                        if deve_reiniciar:
-                            self._tenter_reiniciar(nome, dados)
+                        if not state.get("killed_by_us", False) and regra != "Sempre Encerrar (Blacklist)":
+                            if exit_code != 0:
+                                motivo = "SOBRECARGA DO SO" if (global_cpu > 90 or global_ram > 90) else "CRASH / EXTERNO"
+                                self.log_callback(f"🔴 QUEDA: {nome} ({motivo})")
+                    
+                    self.status_anterior_dict[nome] = status_real
+
+                    # --- O CÉREBRO AVALIA ---
+                    dados["pid"] = nome 
+                    acao, motivo, alvo = self.process_engine.evaluate_process(nome, dados, cfg)
+                    
+                    if acao == "Log_Info":
+                        self.log_callback(f"ℹ️ [INFO] '{nome}' - {motivo}")
+                    elif acao != "Nada":
+                        self._executar_acao_recuperacao(nome, acao, motivo, cfg)
+
+                    # --- SALVA NA MEMÓRIA PARA A UI LER ---
+                    self.latest_metrics[nome] = {
+                        "status": status_real,
+                        "cpu": dados["cpu"],
+                        "ram": dados["ram"],
+                        "regra": regra,
+                        "acao_pendente": acao
+                    }
                 
                 if fazer_relatorio_rotina:
                      self.log_callback(f"{'-'*68}\n", com_hora=False)
 
             except Exception as e:
-                print(f"Erro loop: {e}")
+                print(f"Erro loop central: {e}")
             
             time.sleep(self.config.intervalo)
 
-    def _tenter_reiniciar(self, nome, dados):
-        path = dados.get('path')
-        if path and os.path.exists(path):
-            try:
-                subprocess.Popen(path)
-                self.log_callback(f"🔄 AUTO-RESTART: Reiniciando {nome}...")
-                dados['status'] = "Iniciando" 
-            except Exception as e:
-                self.log_callback(f"⚠️ ERRO RESTART: Falha ao abrir {nome}. Detalhe: {e}")
-        else:
-            self.log_callback(f"⚠️ CONFIGURAÇÃO: Caminho inválido para {nome}.")
+    def _executar_acao_recuperacao(self, nome, acao, motivo, cfg):
+        self.log_callback(f"⚡ [AÇÃO] {nome} | Motivo: {motivo} | Ação: {acao}")
+        
+        def task():
+            if acao == "Iniciar":
+                path = cfg.get("path", "")
+                min = cfg.get("execucao", {}).get("minimizado", False)
+                oculto = cfg.get("execucao", {}).get("oculto", False)
+                ProcessAdapter.iniciar_processo(path, minimizado=min, oculto=oculto)
+            elif acao == "Parar_Forcado":
+                ProcessAdapter.encerrar_processo(nome, graceful=False)
+            elif acao == "Parar_Elegante":
+                timeout = cfg.get("execucao", {}).get("graceful_timeout", 10)
+                ProcessAdapter.encerrar_processo(nome, graceful=True, timeout=timeout)
+            elif acao == "Alerta_Critico":
+                self.log_callback(f"❌ [CRÍTICO] {nome} falhou repetidamente. Ações automáticas suspensas!")
+                script_path = cfg.get("emergencia", {}).get("script_path", "")
+                if script_path:
+                    self.log_callback(f"🔧 A executar script de emergência: {script_path}")
+                    try: subprocess.Popen(script_path, shell=True)
+                    except Exception as e: self.log_callback(f"Erro ao executar script: {e}")
+
+        threading.Thread(target=task, daemon=True).start()
