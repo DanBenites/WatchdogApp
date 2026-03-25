@@ -11,7 +11,7 @@ from .components.splash_screen import SplashScreen
 from .components.sidebar import Sidebar  # <--- Novo componente
 
 # Tabs
-from .tabs.monitor_tab import MonitorTab
+from .tabs.monitor.monitor_tab import MonitorTab
 from .tabs.config_tab import ConfigTab
 from .tabs.log_tab import LogTab
 from .tabs.account_tab import AccountTab
