@@ -86,29 +86,24 @@ class AdicionarProcessoModal(ctk.CTkToplevel):
         lbl_titulo.pack(fill="x", pady=(10, 2), padx=5)
         self.all_catalog_widgets.append({"row": lbl_titulo, "nome": titulo, "is_title": True})
 
-        icon_empty = self.master_tab.icon_manager._icons.get("checkbox_empty")
-        icon_set = self.master_tab.icon_manager._icons.get("checkbox_set")
-
         for nome in sorted(dados.keys()):
             info = dados[nome]
             path = info['path']
             is_monitored = nome in self.master_tab.config_data.processos
             
-            # Define as cores e o ícone com base no status do processo
             if is_monitored:
                 bg_color = AppColors.DUSK_BLUE
-                text_color = AppColors.WHITE  # Texto branco para contrastar com o fundo azul
-                chk_icon = icon_set           # Mantém marcado visualmente
+                text_color = AppColors.WHITE  
             else:
                 bg_color = AppColors.BRIGHT_SNOW
                 text_color = AppColors.CHARCOAL_BLUE
-                chk_icon = icon_empty         # Desmarcado
             
             row = ctk.CTkFrame(self.catalog_scroll, fg_color=bg_color, corner_radius=0)
             
-            # Label do Checkbox agora usa imagem em vez de texto
-            lbl_chk = ctk.CTkLabel(row, text="", image=chk_icon, width=40)
-            lbl_chk.pack(side="left", padx=(5, 5), pady=2)
+            # --- CHECKBOX NATIVO ---
+            chk_var = ctk.BooleanVar(value=is_monitored)
+            chk = ctk.CTkCheckBox(row, text="", variable=chk_var, width=20, checkbox_width=20, checkbox_height=20, fg_color=AppColors.DUSK_BLUE, border_color=AppColors.CHARCOAL_BLUE)
+            chk.pack(side="left", padx=(10, 5), pady=2)
             
             # Nome e Ícone do App
             icone = self.master_tab.icon_manager.carregar(nome, path)
@@ -116,37 +111,39 @@ class AdicionarProcessoModal(ctk.CTkToplevel):
             lbl_nome.pack(side="left", padx=5)
             
             if is_monitored:
+                chk.configure(state="disabled") # Bloqueia o checkbox se já for monitorado
                 ctk.CTkLabel(row, text="[Já Monitorado]", text_color=AppColors.PLATINUM, font=("Arial", 11)).pack(side="right", padx=15)
             else:
-                def on_click(event=None, n=nome, p=path, r=row, c=lbl_chk, ln=lbl_nome): 
-                    self.toggle_selection(n, p, r, c, ln)
-                lbl_chk.bind("<Button-1>", on_click)
-                lbl_nome.bind("<Button-1>", on_click)
-                row.bind("<Button-1>", on_click)
-                lbl_chk.configure(cursor="hand2")
+                # 1. Se o utilizador clicar diretamente na checkbox nativa:
+                chk.configure(command=lambda n=nome, p=path, r=row, cv=chk_var, ln=lbl_nome: self.toggle_selection(n, p, r, cv, ln))
+                
+                # 2. Se o utilizador clicar na linha ou no nome do aplicativo:
+                def on_row_click(event=None, n=nome, p=path, r=row, cv=chk_var, ln=lbl_nome): 
+                    cv.set(not cv.get()) # Inverte a checkbox visualmente por código
+                    self.toggle_selection(n, p, r, cv, ln) # Roda a lógica de marcação
+
+                lbl_nome.bind("<Button-1>", on_row_click)
+                row.bind("<Button-1>", on_row_click)
+                
                 lbl_nome.configure(cursor="hand2")
                 row.configure(cursor="hand2")
 
             self.all_catalog_widgets.append({"row": row, "nome": nome, "is_title": False, "monitored": is_monitored})
             row.pack(fill="x", pady=1)
 
-    def toggle_selection(self, nome, path, row, lbl_chk, lbl_nome):
-        # Carrega os ícones para fazer a troca
-        icon_empty = self.master_tab.icon_manager._icons.get("checkbox_empty")
-        icon_set = self.master_tab.icon_manager._icons.get("checkbox_set")
-
-        if nome in self.selected_processes:
-            # Desmarcar
-            del self.selected_processes[nome]
-            row.configure(fg_color=AppColors.BRIGHT_SNOW)
-            lbl_chk.configure(image=icon_empty)
-            lbl_nome.configure(text_color=AppColors.CHARCOAL_BLUE)
-        else:
+    def toggle_selection(self, nome, path, row, chk_var, lbl_nome):
+        # A lógica agora lê diretamente o estado da CheckBox nativa (chk_var)
+        if chk_var.get():
             # Marcar
             self.selected_processes[nome] = {"nome": nome, "path": path}
-            row.configure(fg_color="#D1E7DD") # Fundo verde claro mantido na seleção
-            lbl_chk.configure(image=icon_set)
+            row.configure(fg_color="#D1E7DD") # Fundo verde claro
             lbl_nome.configure(text_color=AppColors.GREEN)
+        else:
+            # Desmarcar
+            if nome in self.selected_processes:
+                del self.selected_processes[nome]
+            row.configure(fg_color=AppColors.BRIGHT_SNOW)
+            lbl_nome.configure(text_color=AppColors.CHARCOAL_BLUE)
             
         self.btn_confirm_add.configure(text=f"Adicionar ({len(self.selected_processes)})")
 
@@ -178,5 +175,5 @@ class AdicionarProcessoModal(ctk.CTkToplevel):
     
     def fechar_modal(self):
         """Método seguro para fechar a janela, liberando o foco primeiro."""
-        self.grab_release()  # Libera o bloqueio da janela principal
-        self.destroy()       # Destrói a janela modal
+        self.grab_release()  
+        self.destroy()

@@ -76,7 +76,7 @@ class ProcessosView(ctk.CTkFrame):
     
     def _build_footer(self):
         self.btn_start = ctk.CTkButton(
-            self, text="INICIAR MONITORAMENTO", text_color=AppColors.WHITE,
+            self, text="INICIAR MONITORAMENTO", image=self.icon_manager._icons.get("play"), text_color=AppColors.WHITE,
             fg_color=AppColors.DUSK_BLUE, height=34, font=("Arial", 14, "bold"),
             command=self.master_tab.toggle_monitor
         )
@@ -125,7 +125,7 @@ class ProcessosView(ctk.CTkFrame):
         btn_group_frame.pack(expand=True)
 
         
-        btn_edit = ctk.CTkButton(btn_group_frame, text="✏️", width=30, height=26, fg_color="#0056b3", hover_color="#004494", command=lambda: self.editar_processo(nome))
+        btn_edit = ctk.CTkButton(btn_group_frame, text="", image=self.icon_manager._icons.get("edit_light"), width=30, height=26, fg_color="#0056b3", hover_color="#004494", command=lambda: self.editar_processo(nome))
         btn_edit.pack(side="left", padx=(0, 5))
 
         btn_del = ctk.CTkButton(btn_group_frame, text="✕", width=24, height=24, fg_color="#dc3545", hover_color="#c82333", command=lambda: self.remover_processo(nome))
@@ -229,7 +229,7 @@ class ProcessosView(ctk.CTkFrame):
                 for nome, widgets in self.linhas_visuais.items():
                     widgets["cpu"].configure(text="0.0 %")
                     widgets["ram"].configure(text="0 MB")
-                    widgets["status"].configure(text="Ausente", text_color="gray")
+                    widgets["status"].configure(text="Aguard. Monitor", text_color="gray")
                 time.sleep(1)
                 continue
                 

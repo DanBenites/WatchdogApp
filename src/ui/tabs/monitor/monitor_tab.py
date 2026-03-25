@@ -83,7 +83,11 @@ class MonitorTab(ctk.CTkFrame):
                 messagebox.showwarning("Vazio", "Adicione processos primeiro.")
                 return
             
-            lista_alvo = list(self.config_data.processos)
+            lista_alvo = [
+                nome for nome, dados in self.config_data.processos.items() 
+                if dados.get("regra") != "Sempre Encerrar (Blacklist)"
+            ]
+            
             ausentes = SystemUtils.verificar_processos_ausentes(lista_alvo)
 
             if ausentes:
@@ -103,14 +107,14 @@ class MonitorTab(ctk.CTkFrame):
             self.config_data.monitoramento_ativo_no_fechamento = True
             PersistenceRepository.salvar(self.config_data)
             
-            self.view_processos.btn_start.configure(text="PARAR MONITORAMENTO", fg_color="orange")
+            self.view_processos.btn_start.configure(text="PARAR MONITORAMENTO", image= self.icon_manager._icons.get("stop") , fg_color="orange")
             self.view_processos.definir_estado_edicao("disabled")
         
         else:
             self.engine.parar()
             self.config_data.monitoramento_ativo_no_fechamento = False
             PersistenceRepository.salvar(self.config_data)
-            self.view_processos.btn_start.configure(text="INICIAR MONITORAMENTO", fg_color=AppColors.DUSK_BLUE)
+            self.view_processos.btn_start.configure(text="INICIAR MONITORAMENTO", image=self.icon_manager._icons.get("play"), fg_color=AppColors.DUSK_BLUE)
             self.view_processos.definir_estado_edicao("normal")
 
     def _forcar_inicializacao(self, lista_nomes):
@@ -129,7 +133,11 @@ class MonitorTab(ctk.CTkFrame):
         if self.engine.rodando: return
         self.log("🤖 Iniciando automação de retomada...")
         
-        lista_alvo = list(self.config_data.processos)
+        lista_alvo = [
+            nome for nome, dados in self.config_data.processos.items() 
+            if dados.get("regra") != "Sempre Encerrar (Blacklist)"
+        ]
+        
         ausentes = SystemUtils.verificar_processos_ausentes(lista_alvo)
         
         if ausentes:
@@ -146,7 +154,7 @@ class MonitorTab(ctk.CTkFrame):
 
     def _iniciar_engine_silencioso(self):
         self.engine.iniciar()
-        self.view_processos.btn_start.configure(text="PARAR MONITORAMENTO", fg_color="orange")
+        self.view_processos.btn_start.configure(text="PARAR MONITORAMENTO", image=self.icon_manager._icons.get("stop"), fg_color="orange")
         self.view_processos.definir_estado_edicao("disabled")
         self.log("✅ Monitoramento retomado automaticamente.")
     
@@ -159,7 +167,7 @@ class MonitorTab(ctk.CTkFrame):
 
     def desbloquear_por_licenca(self):
         self.view_processos.btn_start.configure(
-            text="INICIAR MONITORAMENTO", fg_color=AppColors.DUSK_BLUE,
+            text="INICIAR MONITORAMENTO", image=self.icon_manager._icons.get("play"), fg_color=AppColors.DUSK_BLUE,
             hover_color="#14375d", command=self.toggle_monitor
         )
         self.view_processos.definir_estado_edicao("normal")
