@@ -79,6 +79,7 @@ class IconeManager:
         
         # Mapeamento dos ícones internos do app
         icon_files = {
+            
             "play": SystemUtils.resource_path(os.path.join("assets", "icons", "play.png")),
             "stop": SystemUtils.resource_path(os.path.join("assets", "icons", "stop.png")),
             "add": SystemUtils.resource_path(os.path.join("assets", "icons", "add.png")),
@@ -89,6 +90,9 @@ class IconeManager:
             "file_save": SystemUtils.resource_path(os.path.join("assets", "icons", "file_save.png")),
             "paste": SystemUtils.resource_path(os.path.join("assets", "icons", "paste.png")),
             "copy_dark": SystemUtils.resource_path(os.path.join("assets", "icons", "copy_dark.png")),
+            "chevron_left_dark": SystemUtils.resource_path(os.path.join("assets", "icons", "chevron_left_dark.png")),
+            "edit_light": SystemUtils.resource_path(os.path.join("assets", "icons", "edit_light.png")),
+            "reset_settings": SystemUtils.resource_path(os.path.join("assets", "icons", "reset_settings.png")),
         }
 
         # Carrega cada ícone se o arquivo existir
