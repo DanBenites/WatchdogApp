@@ -45,11 +45,12 @@ class ServiceAdapter:
 
     @staticmethod
     def get_service_info(name):
-        """Retorna os dados detalhados em tempo real de um serviço (incluindo CPU/RAM e Grupo)."""
+        """Retorna os dados detalhados em tempo real de um serviço (incluindo CPU, RAM e Disco)."""
+        import time # Certifique-se de que o time está importado
         data = {
             "name": name, "status": "Ausente", "pid": "-", 
             "desc": "N/D", "display_name": "N/D", "group": "N/D",
-            "cpu": 0.0, "ram": 0.0
+            "cpu": 0.0, "ram": 0.0, "disk": 0.0
         }
         try:
             svc = psutil.win_service_get(name)
@@ -58,7 +59,7 @@ class ServiceAdapter:
             try: data["display_name"] = svc.display_name()
             except Exception: pass
             
-            data["desc"] = data["display_name"] # Padrão Gerenciador de Tarefas
+            data["desc"] = data["display_name"]
             data["group"] = ServiceAdapter._get_service_group(name)
 
             if data["status"] == 'running':
@@ -68,13 +69,39 @@ class ServiceAdapter:
                     try:
                         pid_int = int(pid)
                         if pid_int not in ServiceAdapter._process_cache:
-                            ServiceAdapter._process_cache[pid_int] = psutil.Process(pid_int)
-                            ServiceAdapter._process_cache[pid_int].cpu_percent(interval=None) # Primeira leitura ignora-se
+                            p = psutil.Process(pid_int)
+                            ServiceAdapter._process_cache[pid_int] = {
+                                "proc": p,
+                                "last_io": p.io_counters() if hasattr(p, 'io_counters') else None,
+                                "last_time": time.time()
+                            }
+                            p.cpu_percent(interval=None) # Inicializa a leitura de CPU
                         else:
-                            # A segunda leitura traz a diferença percentual real
-                            data["cpu"] = ServiceAdapter._process_cache[pid_int].cpu_percent(interval=None)
-                        
-                        data["ram"] = round(ServiceAdapter._process_cache[pid_int].memory_info().rss / (1024 * 1024), 2)
+                            cache = ServiceAdapter._process_cache[pid_int]
+                            p = cache["proc"]
+                            
+                            # 1. Leitura de CPU e RAM
+                            data["cpu"] = p.cpu_percent(interval=None)
+                            data["ram"] = round(p.memory_info().rss / (1024 * 1024), 2)
+                            
+                            # 2. Leitura de Disco (Cálculo de MB/s real)
+                            if hasattr(p, 'io_counters'):
+                                current_io = p.io_counters()
+                                current_time = time.time()
+                                if cache["last_io"] and current_time > cache["last_time"]:
+                                    # Soma os bytes lidos e escritos desde a última checagem
+                                    bytes_read = current_io.read_bytes - cache["last_io"].read_bytes
+                                    bytes_write = current_io.write_bytes - cache["last_io"].write_bytes
+                                    total_mb = (bytes_read + bytes_write) / (1024 * 1024)
+                                    time_diff = current_time - cache["last_time"]
+                                    
+                                    # Calcula os Megabytes por segundo
+                                    data["disk"] = round(total_mb / time_diff, 2)
+                                
+                                # Atualiza o cache para a próxima volta do loop
+                                cache["last_io"] = current_io
+                                cache["last_time"] = current_time
+                                
                     except Exception:
                         if int(pid) in ServiceAdapter._process_cache:
                             del ServiceAdapter._process_cache[int(pid)]

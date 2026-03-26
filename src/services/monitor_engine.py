@@ -156,19 +156,21 @@ class WatchdogEngine:
     # THREAD 2: SERVIÇOS
     # ---------------------------------------------
     def _loop_servicos(self):
-        self.log_callback("\n📋 INICIALIZANDO MONITORAMENTO DE SERVIÇOS...", com_hora=False)
-        
         while self.rodando:
-            try:
-                servicos_monitorados = list(self.config.servicos.keys())
-                
-                # Se não houver serviços, dorme e tenta de novo sem consumir CPU
-                if not servicos_monitorados:
-                    time.sleep(2)
-                    continue
+            servicos_monitorados = list(self.config.servicos.keys())
+            
+            # Se não houver serviços, dorme e tenta de novo sem consumir CPU
+            if not servicos_monitorados:
+                time.sleep(2)
+                continue
 
-                for nome in servicos_monitorados:
-                    cfg = self.config.servicos[nome]
+            for nome in servicos_monitorados:
+                try:
+                    # Usamos .get() no lugar de [nome] para evitar KeyError se o usuário deletar o serviço via UI
+                    cfg = self.config.servicos.get(nome)
+                    if not cfg:
+                        continue # O serviço foi apagado da interface enquanto o loop rodava
+                        
                     info = ServiceAdapter.get_service_info(nome)
                     
                     # Pede ao Cérebro para avaliar a situação
@@ -180,14 +182,16 @@ class WatchdogEngine:
                     if acao != "Nada":
                         self._executar_acao_servico(nome, acao, motivo, alvo_script)
 
-            except Exception as e:
-                print(f"Erro na thread de serviços: {e}")
+                except Exception as e:
+                    # Se um serviço falhar, loga o erro, mas NÃO interrompe a vigília dos outros serviços!
+                    self.log_callback(f"⚠️ Erro ao processar o serviço '{nome}': {e}")
             
+            # Repouso do loop principal usando o intervalo configurado
             time.sleep(self.config.intervalo)
 
     def _executar_acao_servico(self, nome, acao, motivo, alvo):
         """Dispara os comandos do Windows em background para não travar o loop principal."""
-        
+
         if acao == "Log_Info":
             self.log_callback(f"ℹ️ [INFO] '{nome}' - {motivo}")
             return
@@ -215,6 +219,13 @@ class WatchdogEngine:
                     self.log_callback(f"🔪 Taskkill inteligente executado: {msg}")
                 else:
                     self.log_callback(f"⚠️ Falha ao tentar forçar encerramento de {nome}: {msg}")
+            elif acao == "Alertar_Notificar":
+                self.log_callback(f"⚠️ [ALERTA] {nome} | {motivo}")
+                # Dispara a notificação nativa do Windows usando a sua classe utilitária
+                SystemUtils.enviar_notificacao_windows(
+                    titulo=f"WatchdogApp: Alerta de Serviço",
+                    mensagem=f"O serviço '{nome}' precisa da sua atenção!\nMotivo: {motivo}"
+                )
             elif acao == "Alerta_Critico":
                 self.log_callback(f"🚨 [CRÍTICO] {nome} suspenso pelo sistema de Emergência!")
                 if alvo: # 'alvo' aqui carrega o caminho do script
