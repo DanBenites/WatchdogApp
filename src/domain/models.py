@@ -28,4 +28,5 @@ class AppConfig:
     delay_inicializacao: int = 20 
     acao_ao_iniciar: str = "ignorar"
     processos: Dict[str, dict] = field(default_factory=dict)
+    servicos: dict = field(default_factory=dict)
     licenca: LicencaInfo = field(default_factory=LicencaInfo)

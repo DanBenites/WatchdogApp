@@ -9,6 +9,8 @@ from ..infrastructure.system_utils import SystemUtils
 from ..infrastructure.process_adapter import ProcessAdapter
 from ..domain.process_engine import WatchdogProcessEngine
 from .process_use_cases import OSProcessUseCase
+from ..infrastructure.service_adapter import ServiceAdapter
+from ..domain.service_engine import WatchdogServiceEngine
 
 class WatchdogEngine:
     def __init__(self, config, log_callback, auth_service):
@@ -16,49 +18,47 @@ class WatchdogEngine:
         self.log_callback = log_callback
         self.auth_service = auth_service
         self.rodando = False
-        self._thread = None
+        self._thread_proc = None
+        self._thread_serv = None
         self.callback_licenca_expirada = None
         
-        # 1. O MOTOR HERDA O CÉREBRO
         self.process_engine = WatchdogProcessEngine()
+        self.service_engine = WatchdogServiceEngine()
         
-        # 2. MEMÓRIA PARTILHADA PARA A UI (A interface vai ler isto em vez de varrer o Windows)
         self.latest_metrics = {}
         self.status_anterior_dict = {}
 
     def iniciar(self):
         if self.rodando: return
         self.rodando = True
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._thread.start()
+        
+        # Dispara as duas threads independentes e simultâneas
+        self._thread_proc = threading.Thread(target=self._loop_processos, daemon=True)
+        self._thread_serv = threading.Thread(target=self._loop_servicos, daemon=True)
+        
+        self._thread_proc.start()
+        self._thread_serv.start()
 
     def parar(self):
         self.rodando = False
         now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-        msg = f"\n{'='*15} 🛑 MONITORAMENTO PARADO {'='*15}\n"
-        msg += f"📅 Data: {now}\n"
-        msg += f"{'='*54}"
-        self.log_callback(msg, com_hora=False)
+        self.log_callback(f"\n{'='*15} 🛑 MONITORAMENTO PARADO {'='*15}\n📅 Data: {now}\n{'='*54}", com_hora=False)
 
     def _gerar_relatorio_inicial(self, cpu, ram, ativos_agora):
         now = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-        msg = f"\n{'='*15} MONITORAMENTO INICIADO {'='*15}\n"
-        msg += f"📅 Data: {now}\n"
-        msg += f"💻 Sistema: CPU {cpu}% | RAM {ram}%\n"
-        msg += f"{'-'*54}\n"
-        msg += "📋 STATUS INICIAL DOS PROCESSOS:\n"
-
+        msg = f"\n{'='*15} MONITORAMENTO INICIADO {'='*15}\n📅 Data: {now}\n💻 Sistema: CPU {cpu}% | RAM {ram}%\n{'-'*54}\n📋 STATUS INICIAL DOS PROCESSOS:\n"
         for nome, dados in self.config.processos.items():
             regra = dados.get('regra', 'N/A')
             status_real = "🟢 ATIVO" if nome.lower() in ativos_agora else "🔴 PARADO"
             msg += f"   • {nome:<20} | {regra:<20} | {status_real}\n"
-        
         msg += f"{'='*54}"
         self.log_callback(msg, com_hora=False)
 
-    def _loop(self):
+    # ---------------------------------------------
+    # THREAD 1: PROCESSOS
+    # ---------------------------------------------
+    def _loop_processos(self):
         ultimo_heartbeat = time.time()
-        
         try:
             global_cpu, global_ram = SystemUtils.obter_status_recursos()
             metricas_iniciais = OSProcessUseCase.obter_metricas_processos(list(self.config.processos.keys()))
@@ -74,11 +74,9 @@ class WatchdogEngine:
                     time.sleep(2)
                     continue
 
-                # O Motor centraliza a leitura do Windows
                 global_cpu, global_ram = SystemUtils.obter_status_recursos()
                 metricas = OSProcessUseCase.obter_metricas_processos(nomes_monitorados)
 
-                # --- HEARTBEAT / LICENÇA ---
                 segundos_heartbeat = self.config.intervalo_heartbeat * 3600
                 agora = time.time()
                 fazer_relatorio_rotina = (agora - ultimo_heartbeat) >= segundos_heartbeat
@@ -86,7 +84,6 @@ class WatchdogEngine:
                 if fazer_relatorio_rotina:
                     self.log_callback(f"\n{'='*15} CHECAGEM DE ROTINA {'='*15}", com_hora=False)
                     ultimo_heartbeat = agora
-
                     if not self.auth_service.verificar_status_atual():
                         self.log_callback("❌ ATENÇÃO: A licença de uso expirou!", com_hora=True)
                         SystemUtils.enviar_notificacao_windows("WatchdogApp - Licença Expirada", "O monitoramento foi interrompido.")
@@ -103,47 +100,33 @@ class WatchdogEngine:
                     status_ant = self.status_anterior_dict.get(nome, "Ausente")
                     regra = cfg.get("regra", "Não Reiniciar")
 
-                    # Logs de Rotina
                     if fazer_relatorio_rotina and status_real == "Em Execução":
                          self.log_callback(f"   ✔️  {nome:<20} | Status: OK (Rodando)", com_hora=False)
 
-                    # --- LOGS DE TRANSIÇÃO INTELIGENTES ---
                     if status_real == "Em Execução" and status_ant != "Em Execução":
                         self.log_callback(f"🟢 DETECTADO: {nome} entrou em execução.")
-                        
                     elif status_real != "Em Execução" and status_ant == "Em Execução":
                         state = self.process_engine.get_or_create_state(nome)
-                        exit_code = dados.get("exit_code", -1)
-                        
-                        # Se a flag "killed_by_us" for True, fomos nós que matámos (Blacklist/Limites). O log de Queda é IGNORADO!
                         if not state.get("killed_by_us", False):
+                            exit_code = dados.get("exit_code", -1)
                             if exit_code != 0:
-                                # Nova string para garantir que estamos no código novo
                                 motivo = "SOBRECARGA DO SO" if (global_cpu > 90 or global_ram > 90) else "CRASH / EXTERNO"
                                 self.log_callback(f"🔴 QUEDA: {nome} ({motivo})")
                     
                     self.status_anterior_dict[nome] = status_real
 
-                    # --- O CÉREBRO AVALIA ---
                     dados["pid"] = nome 
                     acao, motivo, alvo = self.process_engine.evaluate_process(nome, dados, cfg)
                     
-                    if acao == "Log_Info":
-                        self.log_callback(f"ℹ️ [INFO] '{nome}' - {motivo}")
-                    elif acao != "Nada":
-                        self._executar_acao_recuperacao(nome, acao, motivo, cfg)
+                    if acao == "Log_Info": self.log_callback(f"ℹ️ [INFO] '{nome}' - {motivo}")
+                    elif acao != "Nada": self._executar_acao_recuperacao(nome, acao, motivo, cfg)
 
-                    # --- SALVA NA MEMÓRIA PARA A UI LER ---
                     self.latest_metrics[nome] = {
-                        "status": status_real,
-                        "cpu": dados["cpu"],
-                        "ram": dados["ram"],
-                        "regra": regra,
-                        "acao_pendente": acao
+                        "status": status_real, "cpu": dados["cpu"], "ram": dados["ram"],
+                        "regra": regra, "acao_pendente": acao
                     }
                 
-                if fazer_relatorio_rotina:
-                     self.log_callback(f"{'-'*68}\n", com_hora=False)
+                if fazer_relatorio_rotina: self.log_callback(f"{'-'*68}\n", com_hora=False)
 
             except Exception as e:
                 print(f"Erro loop central: {e}")
@@ -152,18 +135,14 @@ class WatchdogEngine:
 
     def _executar_acao_recuperacao(self, nome, acao, motivo, cfg):
         self.log_callback(f"⚡ [AÇÃO] {nome} | Motivo: {motivo} | Ação: {acao}")
-        
         def task():
             if acao == "Iniciar":
                 path = cfg.get("path", "")
                 min = cfg.get("execucao", {}).get("minimizado", False)
                 oculto = cfg.get("execucao", {}).get("oculto", False)
                 ProcessAdapter.iniciar_processo(path, minimizado=min, oculto=oculto)
-            elif acao == "Parar_Forcado":
-                ProcessAdapter.encerrar_processo(nome, graceful=False)
-            elif acao == "Parar_Elegante":
-                timeout = cfg.get("execucao", {}).get("graceful_timeout", 10)
-                ProcessAdapter.encerrar_processo(nome, graceful=True, timeout=timeout)
+            elif acao == "Parar_Forcado": ProcessAdapter.encerrar_processo(nome, graceful=False)
+            elif acao == "Parar_Elegante": ProcessAdapter.encerrar_processo(nome, graceful=True, timeout=cfg.get("execucao", {}).get("graceful_timeout", 10))
             elif acao == "Alerta_Critico":
                 self.log_callback(f"[CRÍTICO] {nome} falhou repetidamente. Ações automáticas suspensas!")
                 script_path = cfg.get("emergencia", {}).get("script_path", "")
@@ -171,5 +150,58 @@ class WatchdogEngine:
                     self.log_callback(f"🔧 A executar script de emergência: {script_path}")
                     try: subprocess.Popen(script_path, shell=True)
                     except Exception as e: self.log_callback(f"Erro ao executar script: {e}")
+        threading.Thread(target=task, daemon=True).start()
 
+    # ---------------------------------------------
+    # THREAD 2: SERVIÇOS
+    # ---------------------------------------------
+    def _loop_servicos(self):
+        self.log_callback("\n📋 INICIALIZANDO MONITORAMENTO DE SERVIÇOS...", com_hora=False)
+        
+        while self.rodando:
+            try:
+                servicos_monitorados = list(self.config.servicos.keys())
+                
+                # Se não houver serviços, dorme e tenta de novo sem consumir CPU
+                if not servicos_monitorados:
+                    time.sleep(2)
+                    continue
+
+                for nome in servicos_monitorados:
+                    cfg = self.config.servicos[nome]
+                    info = ServiceAdapter.get_service_info(nome)
+                    
+                    # Pede ao Cérebro para avaliar a situação
+                    acao, motivo, alvo_script = self.service_engine.evaluate_service(
+                        nome, info, cfg, ServiceAdapter.get_service_info
+                    )
+                    
+                    # Se o cérebro ditar uma ação, nós a executamos!
+                    if acao != "Nada":
+                        self._executar_acao_servico(nome, acao, motivo, alvo_script)
+
+            except Exception as e:
+                print(f"Erro na thread de serviços: {e}")
+            
+            time.sleep(self.config.intervalo)
+
+    def _executar_acao_servico(self, nome, acao, motivo, script_alvo):
+        """Dispara os comandos do Windows em background para não travar o loop principal."""
+        self.log_callback(f"⚙️ [SERVIÇO] {nome} | Motivo: {motivo} | Ação: {acao}")
+        
+        def task():
+            if acao == "Iniciar": 
+                ServiceAdapter.start_service(nome)
+            elif acao == "Parar": 
+                ServiceAdapter.stop_service(nome)
+            elif acao == "Reiniciar":
+                ServiceAdapter.stop_service(nome)
+                time.sleep(3) # Aguarda o Windows libertar o serviço
+                ServiceAdapter.start_service(nome)
+            elif acao == "Continuar": 
+                ServiceAdapter.continue_service(nome)
+            elif acao == "Iniciar_Outro" and script_alvo:
+                self.log_callback(f"🚀 Iniciando dependência '{script_alvo}' primeiro...")
+                ServiceAdapter.start_service(script_alvo)
+                
         threading.Thread(target=task, daemon=True).start()

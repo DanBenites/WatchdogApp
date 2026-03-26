@@ -31,7 +31,7 @@ class AdicionarProcessoModal(ctk.CTkToplevel):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.pack(fill="x", padx=15, pady=(15, 5))
         
-        ctk.CTkButton(header_frame, image= self.icon_manager._icons.get("chevron_left_dark"), text="", fg_color=AppColors.TRANSPARENT, hover=AppColors.BRILLIANT_AZURE, width=30, height=30, command=self.fechar_modal).pack(side="left", padx=5)
+        ctk.CTkButton(header_frame, image=self.icon_manager._icons.get("chevron_left_dark"), text="", fg_color=AppColors.TRANSPARENT, hover_color=AppColors.PLATINUM, width=30, height=30, command=self.fechar_modal).pack(side="left", padx=5)
         ctk.CTkLabel(header_frame, text="Catálogo de Processos Ativos", font=("Arial", 16, "bold"), text_color=AppColors.CHARCOAL_BLUE).pack(side="left")
 
         action_frame = ctk.CTkFrame(self, fg_color="transparent")

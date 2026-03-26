@@ -25,7 +25,6 @@ class ProcessosView(ctk.CTkFrame):
         
         self._build_header()
         self._build_table()
-        self._build_footer()
         
         self.popular_tabela()
         
@@ -74,13 +73,6 @@ class ProcessosView(ctk.CTkFrame):
         ctk.CTkLabel(hdr_frame, text="RAM (MB)", anchor="center", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.78, relwidth=0.09, rely=0, relheight=1)
         ctk.CTkLabel(hdr_frame, text="Ações", anchor="center", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.87, relwidth=0.13, rely=0, relheight=1)
     
-    def _build_footer(self):
-        self.btn_start = ctk.CTkButton(
-            self, text="INICIAR MONITORAMENTO", image=self.icon_manager._icons.get("play"), text_color=AppColors.WHITE,
-            fg_color=AppColors.DUSK_BLUE, height=34, font=("Arial", 14, "bold"),
-            command=self.master_tab.toggle_monitor
-        )
-        self.btn_start.pack(fill="x", pady=(10, 0))
 
     def criar_linha(self, nome, regra, path=None):
 

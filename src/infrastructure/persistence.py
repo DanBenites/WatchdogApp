@@ -34,6 +34,7 @@ class PersistenceRepository:
                 "acao_ao_iniciar": config.acao_ao_iniciar
             },
             "processos_monitorados": config.processos,
+            "servicos_monitorados": config.servicos,
             "licenca": {
                 "chave": config.licenca.chave,
                 "hwid_vinculado": config.licenca.hwid_vinculado,
@@ -85,7 +86,8 @@ class PersistenceRepository:
                 monitoramento_ativo_no_fechamento=dados["configuracoes"].get("monitoramento_ativo_no_fechamento", False),
                 delay_inicializacao=dados["configuracoes"].get("delay_inicializacao", 20),
                 acao_ao_iniciar=dados["configuracoes"].get("acao_ao_iniciar", "ignorar"),
-                processos=dados.get("processos_monitorados", {})
+                processos=dados.get("processos_monitorados", {}),
+                servicos=dados.get("servicos_monitorados", {})
             )
             
             if "licenca" in dados:
