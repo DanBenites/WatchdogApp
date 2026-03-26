@@ -71,7 +71,7 @@ class ProcessPropertiesWindow(ctk.CTkToplevel):
         return frm
 
     # ==========================================
-    # MODAL DE AJUDA ELEGANTE (OVERLAY)
+    # MODAL DE AJUDA
     # ==========================================
     def _show_help_dialog(self, title, message):
         """Um overlay de ajuda customizado, silencioso, arredondado e com o design da aplicação"""

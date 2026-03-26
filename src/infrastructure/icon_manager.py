@@ -82,6 +82,9 @@ class IconeManager:
             
             "play": SystemUtils.resource_path(os.path.join("assets", "icons", "play.png")),
             "stop": SystemUtils.resource_path(os.path.join("assets", "icons", "stop.png")),
+            "pause": SystemUtils.resource_path(os.path.join("assets", "icons", "pause.png")),
+            "continue": SystemUtils.resource_path(os.path.join("assets", "icons", "continue.png")),
+            "restart": SystemUtils.resource_path(os.path.join("assets", "icons", "restart.png")),
             "add": SystemUtils.resource_path(os.path.join("assets", "icons", "add.png")),
             "refresh": SystemUtils.resource_path(os.path.join("assets", "icons", "refresh.png")),
             "close_console": SystemUtils.resource_path(os.path.join("assets", "icons", "close_console.png")),

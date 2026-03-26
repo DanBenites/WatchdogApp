@@ -195,7 +195,6 @@ class AdicionarServicoModal(ctk.CTkToplevel):
                 self.master_tab.config_data.servicos[name] = {
                     "state_actions": {"running": "Não Fazer Nada", "stopped": "Reiniciar", "paused": "Não Fazer Nada"},
                     "perf_limits": {"cpu": 0.0, "ram": 0.0, "tolerance": 30, "max_restarts": 3, "reset_days": 0},
-                    "snooze": {"active": False, "until": 0}
                 }
                 count += 1
                 

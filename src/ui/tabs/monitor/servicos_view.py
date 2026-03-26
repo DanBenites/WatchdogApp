@@ -101,13 +101,13 @@ class ServicosView(ctk.CTkFrame):
         ctrl_group = ctk.CTkFrame(frm_ctrl, fg_color="transparent")
         ctrl_group.pack(expand=True)
         
-        btn_play = ctk.CTkButton(ctrl_group, text="▶", width=28, height=24, fg_color="#28a745", hover_color="#218838", command=lambda: self._acao_rapida(nome, "start"))
+        btn_play = ctk.CTkButton(ctrl_group, text="", image=self.icon_manager._icons.get("play"), width=24, height=24, fg_color="#28a745", hover_color="#218838", command=lambda: self._acao_rapida(nome, "start"))
         btn_play.pack(side="left", padx=2)
-        btn_stop = ctk.CTkButton(ctrl_group, text="⏹", width=28, height=24, fg_color="#dc3545", hover_color="#c82333", command=lambda: self._acao_rapida(nome, "stop"))
+        btn_stop = ctk.CTkButton(ctrl_group, text="", image=self.icon_manager._icons.get("stop"), width=24, height=24, fg_color="#dc3545", hover_color="#c82333", command=lambda: self._acao_rapida(nome, "stop"))
         btn_stop.pack(side="left", padx=2)
-        btn_pause = ctk.CTkButton(ctrl_group, text="⏸", width=28, height=24, fg_color="#ffc107", hover_color="#e0a800", text_color="black", command=lambda: self._acao_rapida(nome, "pause"))
+        btn_pause = ctk.CTkButton(ctrl_group, text="", image=self.icon_manager._icons.get("pause"),  width=24, height=24, fg_color="#ffc107", hover_color="#e0a800", text_color="black", command=lambda: self._acao_rapida(nome, "pause"))
         btn_pause.pack(side="left", padx=2)
-        btn_restart = ctk.CTkButton(ctrl_group, text="🔄", width=28, height=24, fg_color="#6c757d", hover_color="#5a6268", command=lambda: self._acao_rapida(nome, "restart"))
+        btn_restart = ctk.CTkButton(ctrl_group, text="", image=self.icon_manager._icons.get("restart"), width=24, height=24, fg_color=AppColors.DUSK_BLUE, command=lambda: self._acao_rapida(nome, "restart"))
         btn_restart.pack(side="left", padx=2)
 
         # 7. Ações (Edit, Delete)
@@ -236,6 +236,8 @@ class ServicosView(ctk.CTkFrame):
                 try:
                     widgets["lbl_status"].configure(text=status_pt, text_color=color)
                     widgets["lbl_pid"].configure(text=info["pid"])
+                    
+                    widgets["lbl_grupo"].configure(text=info["group"])
                     
                     desc = info["desc"]
                     desc_curta = desc if len(desc) < 35 else desc[:32] + "..."

@@ -185,8 +185,13 @@ class WatchdogEngine:
             
             time.sleep(self.config.intervalo)
 
-    def _executar_acao_servico(self, nome, acao, motivo, script_alvo):
+    def _executar_acao_servico(self, nome, acao, motivo, alvo):
         """Dispara os comandos do Windows em background para não travar o loop principal."""
+        
+        if acao == "Log_Info":
+            self.log_callback(f"ℹ️ [INFO] '{nome}' - {motivo}")
+            return
+            
         self.log_callback(f"⚙️ [SERVIÇO] {nome} | Motivo: {motivo} | Ação: {acao}")
         
         def task():
@@ -200,8 +205,23 @@ class WatchdogEngine:
                 ServiceAdapter.start_service(nome)
             elif acao == "Continuar": 
                 ServiceAdapter.continue_service(nome)
-            elif acao == "Iniciar_Outro" and script_alvo:
-                self.log_callback(f"🚀 Iniciando dependência '{script_alvo}' primeiro...")
-                ServiceAdapter.start_service(script_alvo)
+            elif acao == "Iniciar_Outro" and alvo:
+                self.log_callback(f"🚀 Iniciando dependência '{alvo}' primeiro...")
+                ServiceAdapter.start_service(alvo)
+            elif acao == "Forcar_Encerramento":
+                # Executa o algoritmo Sniper do ServiceGuard
+                sucesso, msg = ServiceAdapter.force_kill_service(nome)
+                if sucesso:
+                    self.log_callback(f"🔪 Taskkill inteligente executado: {msg}")
+                else:
+                    self.log_callback(f"⚠️ Falha ao tentar forçar encerramento de {nome}: {msg}")
+            elif acao == "Alerta_Critico":
+                self.log_callback(f"🚨 [CRÍTICO] {nome} suspenso pelo sistema de Emergência!")
+                if alvo: # 'alvo' aqui carrega o caminho do script
+                    self.log_callback(f"🔧 A executar script de emergência: {alvo}")
+                    try:
+                        subprocess.Popen(alvo, shell=True)
+                    except Exception as e:
+                        self.log_callback(f"Erro ao executar script: {e}")
                 
         threading.Thread(target=task, daemon=True).start()
