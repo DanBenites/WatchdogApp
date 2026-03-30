@@ -17,7 +17,8 @@ class ConfigTab(ctk.CTkFrame):
         self.config_data = config_data
         self.persistence = persistence_repo
         self.log = log_callback
-        self.log_manager = log_manager # Para limpeza
+        self.log_manager = log_manager
+        self.tray_icon = None
         self.opcoes_tempo = {
             "5 segundos": 5, "10 segundos": 10, "30 segundos": 30,
             "1 minuto": 60, "2 minutos": 120, "5 minutos": 300
@@ -116,13 +117,37 @@ class ConfigTab(ctk.CTkFrame):
         lbl_tray.grid(row=1, column=1, sticky="we", padx=10)
         grid_sys.bind("<Configure>", lambda e: lbl_tray.configure(wraplength=grid_sys.winfo_width()//2 - 10))
 
+        self.switch_admin = ctk.CTkSwitch(
+            grid_sys,
+            text="Executar como Administrador",
+            font=("Arial", 12, "bold"),
+            text_color=AppColors.NIGHT,
+            command=self._alterar_admin_mode,
+            onvalue=True,
+            offvalue=False,
+            button_color=AppColors.DUSK_BLUE,
+            button_hover_color=AppColors.CHARCOAL_BLUE,
+            progress_color=AppColors.BRILLIANT_AZURE, 
+            fg_color=AppColors.PLATINUM,
+            switch_width=38, switch_height=20, corner_radius=20, border_width=0,
+        )
+        if getattr(self.config_data, 'executar_como_admin', False): self.switch_admin.select()
+        self.switch_admin.grid(row=2, column=0, sticky="w", padx=10, pady=(10, 0))
+
+        lbl_admin = ctk.CTkLabel(
+            grid_sys,
+            text="Força o programa a pedir permissões elevadas. Necessário para controlar Serviços do Windows.",
+            font=("Arial", 11), text_color="gray", justify="left", anchor="nw"
+        )
+        lbl_admin.grid(row=3, column=0, columnspan=2, sticky="ew", padx=10, pady=(10,0))
+
         # Separador visual
-        ctk.CTkFrame(grid_sys, height=2, fg_color=AppColors.PLATINUM).grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+        ctk.CTkFrame(grid_sys, height=2, fg_color=AppColors.PLATINUM).grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
 
         
         # Frame Container Principal da Automação
         f_auto = ctk.CTkFrame(grid_sys, fg_color="transparent")
-        f_auto.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 10))
+        f_auto.grid(row=5, column=0, columnspan=2, sticky="nsew", padx=10, pady=(5, 10))
 
         f_linha_controles = ctk.CTkFrame(f_auto, fg_color="transparent")
         f_linha_controles.pack(fill="x", anchor="w")
@@ -180,7 +205,7 @@ class ConfigTab(ctk.CTkFrame):
 
         # Condição para Processos Ausentes
         f_sub_auto = ctk.CTkFrame(grid_sys, fg_color="transparent")
-        f_sub_auto.grid(row=3, column=1, sticky="w", padx=10, pady=(0,10))
+        f_sub_auto.grid(row=5, column=1, sticky="w", padx=10, pady=(0,10))
         
         self.lbl_sub_auto = ctk.CTkLabel(f_sub_auto,
             text="Se processos ausentes:",
@@ -485,3 +510,20 @@ class ConfigTab(ctk.CTkFrame):
 
         if changed:
             self.persistence.salvar(self.config_data)
+    
+    def _alterar_admin_mode(self):
+        """ Salva a preferência de Admin e sugere o reinício caso ativado """
+        ativar = bool(self.switch_admin.get())
+        self.config_data.executar_como_admin = ativar
+        self.persistence.salvar(self.config_data)
+        status = "ATIVADO" if ativar else "DESATIVADO"
+        self.log(f"ℹ️ Configuração: Executar como Administrador {status}")
+        
+        # Se ativou agora, mas não está a rodar como Admin, sugere reiniciar
+        if ativar and not SystemUtils.is_admin():
+            resposta = messagebox.askyesno("Reiniciar Necessário", "Para aplicar os privilégios de administrador, o aplicativo precisa ser reiniciado.\nDeseja reiniciar agora?")
+            if resposta:
+                self.engine.parar()
+                if getattr(self, 'tray_icon', None): 
+                    self.tray_icon.stop()
+                SystemUtils.run_as_admin()

@@ -33,7 +33,7 @@ class ServicosView(ctk.CTkFrame):
         header_frame.pack(fill="x", pady=(0, 10))
 
         self.entry_busca = ctk.CTkEntry(
-            header_frame, placeholder_text="Buscar serviços monitorizados...", 
+            header_frame, placeholder_text="Buscar serviços monitorados...", 
             fg_color=AppColors.WHITE, border_width=2, border_color=AppColors.PLATINUM, 
             height=34, corner_radius=4, text_color=AppColors.CHARCOAL_BLUE, font=("Arial", 12)
         )
@@ -51,17 +51,17 @@ class ServicosView(ctk.CTkFrame):
         self.table_container = ctk.CTkFrame(self, fg_color=AppColors.WHITE, border_color=AppColors.PLATINUM, border_width=1, corner_radius=8)
         self.table_container.pack(fill="both", expand=True)
 
-        hdr_frame = ctk.CTkFrame(self.table_container, fg_color=AppColors.PLATINUM, corner_radius=4, height=34)
-        hdr_frame.pack(fill="x", pady=(2, 2), padx=2)
-        hdr_frame.pack_propagate(False) 
+        hdr_frame = ctk.CTkFrame(self.table_container, fg_color=AppColors.PLATINUM, corner_radius=4, height=30)
+        hdr_frame.pack(fill="x", pady=(8,0), padx=9)
+        hdr_frame.pack_propagate(False)
 
-        # Colunas Fiéis ao ServiceGuard (Alinhamento Percentual)
+        # Seu layout original intocado!
         ctk.CTkLabel(hdr_frame, text="  Nome", anchor="w", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.0, relwidth=0.20, rely=0, relheight=1)
         ctk.CTkLabel(hdr_frame, text="PID", anchor="w", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.20, relwidth=0.06, rely=0, relheight=1)
-        ctk.CTkLabel(hdr_frame, text="Descrição", anchor="w", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.26, relwidth=0.26, rely=0, relheight=1)
-        ctk.CTkLabel(hdr_frame, text="Grupo", anchor="w", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.52, relwidth=0.08, rely=0, relheight=1)
-        ctk.CTkLabel(hdr_frame, text="Status", anchor="w", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.60, relwidth=0.12, rely=0, relheight=1)
-        ctk.CTkLabel(hdr_frame, text="Controladores", anchor="center", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.72, relwidth=0.18, rely=0, relheight=1)
+        ctk.CTkLabel(hdr_frame, text="Descrição", anchor="w", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.26, relwidth=0.20, rely=0, relheight=1)
+        ctk.CTkLabel(hdr_frame, text="Grupo", anchor="w", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.46, relwidth=0.08, rely=0, relheight=1)
+        ctk.CTkLabel(hdr_frame, text="Status", anchor="center", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.54, relwidth=0.14, rely=0, relheight=1)
+        ctk.CTkLabel(hdr_frame, text="Controladores", anchor="center", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.68, relwidth=0.22, rely=0, relheight=1)
         ctk.CTkLabel(hdr_frame, text="Ações", anchor="center", font=("Arial", 12, "bold"), text_color=AppColors.CHARCOAL_BLUE).place(relx=0.90, relwidth=0.10, rely=0, relheight=1)
 
         self.scroll_area = ctk.CTkScrollableFrame(self.table_container, fg_color="transparent")
@@ -70,9 +70,13 @@ class ServicosView(ctk.CTkFrame):
     def criar_linha(self, nome, config_dados):
         bg_color = AppColors.BRIGHT_SNOW if len(self.linhas_visuais) % 2 == 0 else AppColors.WHITE
         
-        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=44)
+        row = ctk.CTkFrame(self.scroll_area, fg_color=bg_color, corner_radius=0, height=42)
         row.pack(fill="x", pady=(0, 1))
         row.pack_propagate(False) 
+
+        info_inicial = ServiceAdapter.get_service_info(nome)
+        desc_inicial = info_inicial.get("display_name", "N/D") 
+        grupo_inicial = info_inicial.get("group", "N/D")
 
         # 1. Nome
         lbl_nome = ctk.CTkLabel(row, text=f"  {nome}", anchor="w", text_color=AppColors.CHARCOAL_BLUE, font=("Arial", 12, "bold"))
@@ -83,20 +87,20 @@ class ServicosView(ctk.CTkFrame):
         lbl_pid.place(relx=0.20, relwidth=0.06, rely=0, relheight=1)
 
         # 3. Descrição
-        lbl_desc = ctk.CTkLabel(row, text="Aguardar dados...", anchor="w", text_color="gray", font=("Arial", 11))
-        lbl_desc.place(relx=0.26, relwidth=0.26, rely=0, relheight=1)
+        lbl_desc = ctk.CTkLabel(row, text=desc_inicial, anchor="w", text_color="gray", font=("Arial", 11))
+        lbl_desc.place(relx=0.26, relwidth=0.20, rely=0, relheight=1)
 
-        # 4. Grupo (Normalmente N/D nos serviços base, mas mantido por fidelidade)
-        lbl_grupo = ctk.CTkLabel(row, text="N/D", anchor="w", text_color="gray", font=("Arial", 11))
-        lbl_grupo.place(relx=0.52, relwidth=0.08, rely=0, relheight=1)
+        # 4. Grupo
+        lbl_grupo = ctk.CTkLabel(row, text=grupo_inicial, anchor="w", text_color="gray", font=("Arial", 11))
+        lbl_grupo.place(relx=0.46, relwidth=0.08, rely=0, relheight=1)
 
         # 5. Status
-        lbl_status = ctk.CTkLabel(row, text="...", anchor="w", text_color="gray", font=("Arial", 12, "bold"))
-        lbl_status.place(relx=0.60, relwidth=0.12, rely=0, relheight=1)
+        lbl_status = ctk.CTkLabel(row, text="...", anchor="center", text_color="gray", font=("Arial", 12, "bold"))
+        lbl_status.place(relx=0.54, relwidth=0.14, rely=0, relheight=1)
 
-        # 6. Controladores (Start, Stop, Pause, Restart)
+        # 6. Controladores
         frm_ctrl = ctk.CTkFrame(row, fg_color="transparent")
-        frm_ctrl.place(relx=0.72, relwidth=0.18, rely=0, relheight=1)
+        frm_ctrl.place(relx=0.68, relwidth=0.22, rely=0, relheight=1)
         
         ctrl_group = ctk.CTkFrame(frm_ctrl, fg_color="transparent")
         ctrl_group.pack(expand=True)
@@ -110,7 +114,7 @@ class ServicosView(ctk.CTkFrame):
         btn_restart = ctk.CTkButton(ctrl_group, text="", image=self.icon_manager._icons.get("restart"), width=24, height=24, fg_color=AppColors.DUSK_BLUE, command=lambda: self._acao_rapida(nome, "restart"))
         btn_restart.pack(side="left", padx=2)
 
-        # 7. Ações (Edit, Delete)
+        # 7. Ações
         frm_act = ctk.CTkFrame(row, fg_color="transparent")
         frm_act.place(relx=0.90, relwidth=0.10, rely=0, relheight=1)
         
@@ -122,8 +126,9 @@ class ServicosView(ctk.CTkFrame):
         btn_del = ctk.CTkButton(act_group, text="✕", width=26, height=26, fg_color="#dc3545", hover_color="#c82333", command=lambda: self.remover_servico(nome))
         btn_del.pack(side="left", padx=0)
 
+        # CORREÇÃO: Adicionado lbl_nome e lbl_grupo ao dicionário!
         self.linhas_visuais[nome] = {
-            "row": row, "lbl_pid": lbl_pid, "lbl_desc": lbl_desc, "lbl_status": lbl_status, 
+            "row": row, "lbl_nome": lbl_nome, "lbl_pid": lbl_pid, "lbl_desc": lbl_desc, "lbl_grupo": lbl_grupo, "lbl_status": lbl_status, 
             "btn_play": btn_play, "btn_stop": btn_stop, "btn_pause": btn_pause, "btn_restart": btn_restart,
             "btn_edit": btn_edit, "btn_del": btn_del, "bg_padrao": bg_color
         }   
@@ -136,7 +141,7 @@ class ServicosView(ctk.CTkFrame):
             self.criar_linha(nome, dados)
 
     def _acao_rapida(self, nome, acao):
-        """Envia comandos ao WindowsAdapter em Background"""
+        """Envia comandos ao WindowsAdapter e avalia a resposta"""
         widgets = self.linhas_visuais.get(nome)
         if widgets:
             if acao == "start": widgets["lbl_status"].configure(text="Iniciando...", text_color="#17a2b8")
@@ -144,15 +149,25 @@ class ServicosView(ctk.CTkFrame):
             elif acao == "restart": widgets["lbl_status"].configure(text="Reiniciando...", text_color="#17a2b8")
         
         def task():
-            if acao == "start": ServiceAdapter.start_service(nome)
-            elif acao == "stop": ServiceAdapter.stop_service(nome)
-            elif acao == "pause": ServiceAdapter.pause_service(nome)
-            elif acao == "continue": ServiceAdapter.continue_service(nome) # (Pode ser mapeado futuramente)
+            sucesso, msg = False, ""
+            if acao == "start": sucesso, msg = ServiceAdapter.start_service(nome)
+            elif acao == "stop": sucesso, msg = ServiceAdapter.stop_service(nome)
+            elif acao == "pause": sucesso, msg = ServiceAdapter.pause_service(nome)
+            elif acao == "continue": sucesso, msg = ServiceAdapter.continue_service(nome) 
             elif acao == "restart":
                 ServiceAdapter.stop_service(nome)
                 time.sleep(2)
-                ServiceAdapter.start_service(nome)
-            self.master_tab.log(f"Comando '{acao}' enviado para o serviço: {nome}")
+                sucesso, msg = ServiceAdapter.start_service(nome)
+            
+
+            if not sucesso:
+                self.master_tab.log(f"❌ Falha ao executar '{acao}' em {nome}: {msg}")
+                # Exibe o erro do Windows na interface (Thread-safe)
+                self.after(0, lambda: messagebox.showerror(
+                    "Erro no Controlador de Serviço", 
+                    f"O Windows recusou a ação '{acao}' no serviço '{nome}'.\n\nDetalhe do Sistema:\n{msg}\n\nATENÇÃO: Para alterar o status de serviços, certifique-se de que o WatchdogApp foi iniciado como Administrador!",
+                    parent=self.winfo_toplevel()
+                ))
             
         threading.Thread(target=task, daemon=True).start()
 
@@ -160,7 +175,6 @@ class ServicosView(ctk.CTkFrame):
         if self.master_tab.engine.rodando:
             messagebox.showwarning("Bloqueado", "Pare o monitoramento para editar propriedades.")
             return
-        # A janela de propriedades que faremos no Passo 2!
         ServicePropertiesWindow(self.master_tab, self, nome)
 
     def remover_servico(self, nome):
@@ -210,20 +224,46 @@ class ServicosView(ctk.CTkFrame):
             return
         AdicionarServicoModal(self.master_tab, self)
 
+    def _formatar_texto_com_elipse(self, texto, widget_label, font_tuple=("Arial", 11)):
+        if not texto: return "N/D"
+        
+        # winfo_width() pega a largura exata atual da coluna em pixels.
+        # Subtraímos 15px de "margem de segurança" para criar o espaçamento (gap)
+        # impedindo que o texto grude na coluna seguinte.
+        largura_maxima = widget_label.winfo_width() - 15 
+        
+        if largura_maxima <= 10: 
+            return texto[:5] + "..." # Fallback caso a UI ainda esteja renderizando
+            
+        fonte = ctk.CTkFont(family=font_tuple[0], size=font_tuple[1])
+        
+        # Se o texto cabe na coluna, retorna completo (Modo Tela Cheia)
+        if fonte.measure(texto) <= largura_maxima:
+            return texto
+            
+        # Se for maior, trunca caractere por caractere (Modo Janela)
+        texto_truncado = texto
+        largura_pontos = fonte.measure("...")
+        
+        while len(texto_truncado) > 0:
+            texto_truncado = texto_truncado[:-1]
+            if fonte.measure(texto_truncado) + largura_pontos <= largura_maxima:
+                return texto_truncado + "..."
+                
+        return "..."
+
     def loop_atualizacao_tabela(self):
-        """Atualiza a UI da tabela em tempo real com dados lidos do Windows"""
+        """Atualiza a UI da tabela aplicando o truncamento dinâmico"""
         status_trad = {"running": "Em Execução", "stopped": "Parado", "start_pending": "Iniciando", 
                        "stop_pending": "Parando", "paused": "Pausado", "pause_pending": "Pausando"}
 
         while self.running:
-            # Só atualiza visualmente se o motor não estiver a rodar (quando o motor roda, ele gere as leituras)
-            # Mas para garantir que a UI mostra o estado mesmo com o motor parado, lemos a cada 2 segundos.
             for name in list(self.linhas_visuais.keys()):
                 widgets = self.linhas_visuais.get(name)
                 if not widgets: continue
                 
                 info = ServiceAdapter.get_service_info(name)
-                status_raw = info["status"]
+                status_raw = info.get("status", "Ausente")
                 
                 status_pt = status_trad.get(status_raw, status_raw.upper())
                 
@@ -235,13 +275,18 @@ class ServicosView(ctk.CTkFrame):
 
                 try:
                     widgets["lbl_status"].configure(text=status_pt, text_color=color)
-                    widgets["lbl_pid"].configure(text=info["pid"])
+                    widgets["lbl_pid"].configure(text=info.get("pid", "-"))
                     
-                    widgets["lbl_grupo"].configure(text=info["group"])
-                    
-                    desc = info["desc"]
-                    desc_curta = desc if len(desc) < 35 else desc[:32] + "..."
-                    widgets["lbl_desc"].configure(text=desc_curta)
+                    # Aplica a elipse dinâmica à Descrição
+                    desc_str = info.get("display_name", "N/D") 
+                    desc_formatada = self._formatar_texto_com_elipse(desc_str, widgets["lbl_desc"], ("Arial", 11))
+                    widgets["lbl_desc"].configure(text=desc_formatada)
+
+                    # Aplica a elipse dinâmica ao Grupo
+                    grupo_str = info.get("group", "N/D")
+                    grupo_formatado = self._formatar_texto_com_elipse(grupo_str, widgets["lbl_grupo"], ("Arial", 11))
+                    widgets["lbl_grupo"].configure(text=grupo_formatado)
+
                 except Exception:
                     pass
 

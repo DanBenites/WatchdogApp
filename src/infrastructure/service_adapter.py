@@ -10,12 +10,33 @@ class ServiceAdapter:
 
     @staticmethod
     def _get_service_group(service_name):
-        """Lê o Grupo do serviço nativamente pelo Registo do Windows."""
+        """Lê o Grupo do serviço nativamente pelo Registo do Windows ou pelo parâmetro do svchost."""
         try:
             chave_caminho = f"SYSTEM\\CurrentControlSet\\Services\\{service_name}"
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, chave_caminho) as key:
-                group, _ = winreg.QueryValueEx(key, "Group")
-                return group if group else "N/D"
+                # 1. Tenta obter o Load Order Group (Grupo Oficial de Inicialização)
+                try:
+                    group, _ = winreg.QueryValueEx(key, "Group")
+                    if group and group.strip(): 
+                        return group
+                except FileNotFoundError:
+                    pass # Não tem grupo oficial, vamos tentar o plano B
+                
+                # 2. Tenta extrair o Svchost Group do caminho do executável (ImagePath)
+                try:
+                    image_path, _ = winreg.QueryValueEx(key, "ImagePath")
+                    # Procura pelo parâmetro "-k" que define o grupo do svchost
+                    if "-k " in image_path.lower():
+                        # Ex: "%SystemRoot%\system32\svchost.exe -k netsvcs" -> pega o "netsvcs"
+                        partes = image_path.lower().split("-k ")
+                        if len(partes) > 1:
+                            svchost_group = partes[1].split()[0].strip()
+                            # Capitaliza a primeira letra para ficar bonito (ex: Netsvcs)
+                            return svchost_group.capitalize()
+                except FileNotFoundError:
+                    pass
+
+                return "N/D"
         except (FileNotFoundError, OSError):
             return "N/D"
         except Exception:

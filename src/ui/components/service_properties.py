@@ -284,22 +284,38 @@ class ServicePropertiesWindow(ctk.CTkToplevel):
         ctk.CTkButton(act_frame, text="Resetar Configurações para Padrão", image=self.icon_manager._icons.get("reset_settings"), text_color=AppColors.WHITE, fg_color=AppColors.FLAG_RED, hover_color="#c82333", command=self._reset_configs).pack(side="left")
 
     def _cmd(self, action):
+        """Envia comandos ao adaptador a partir da janela de propriedades"""
         def task():
-            if action == "start": ServiceAdapter.start_service(self.service_name)
-            elif action == "stop": ServiceAdapter.stop_service(self.service_name)
-            elif action == "pause": subprocess.run(f"sc pause {self.service_name}", shell=True, capture_output=True)
-            elif action == "continue": subprocess.run(f"sc continue {self.service_name}", shell=True, capture_output=True)
+            sucesso, msg = False, ""
+            if action == "start": sucesso, msg = ServiceAdapter.start_service(self.service_name)
+            elif action == "stop": sucesso, msg = ServiceAdapter.stop_service(self.service_name)
+            elif action == "pause": sucesso, msg = ServiceAdapter.pause_service(self.service_name)
+            elif action == "continue": sucesso, msg = ServiceAdapter.continue_service(self.service_name)
+            
+            if not sucesso:
+                # Se falhar, notifica o utilizador imediatamente
+                self.after(0, lambda: messagebox.showerror(
+                    "Erro no Controlador", 
+                    f"Falha ao executar '{action}' no serviço '{self.service_name}'.\n\nDetalhe do Sistema:\n{msg}\n\nATENÇÃO: Verifique se iniciou o programa (ou o VS Code) como Administrador.", 
+                    parent=self
+                ))
+
             time.sleep(1.5)
             
             try:
                 new_status = psutil.win_service_get(self.service_name).status()
                 is_run = new_status == "running"
-                self.lbl_status_geral.configure(text={"running": "EM EXECUÇÃO", "stopped": "PARADO"}.get(new_status, new_status.upper()))
-                self.btn_start.configure(state="disabled" if is_run else "normal")
-                self.btn_stop.configure(state="normal" if is_run else "disabled")
-                self.btn_pause.configure(state="normal" if is_run else "disabled")
-                self.btn_resume.configure(state="disabled") 
+                
+                # Atualização visual da interface
+                def update_ui():
+                    self.lbl_status_geral.configure(text={"running": "EM EXECUÇÃO", "stopped": "PARADO"}.get(new_status, new_status.upper()))
+                    self.btn_start.configure(state="disabled" if is_run else "normal")
+                    self.btn_stop.configure(state="normal" if is_run else "disabled")
+                    self.btn_pause.configure(state="normal" if is_run else "disabled")
+                    self.btn_resume.configure(state="disabled") 
+                self.after(0, update_ui)
             except Exception: pass
+            
         threading.Thread(target=task, daemon=True).start()
 
 

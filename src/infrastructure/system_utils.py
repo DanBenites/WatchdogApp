@@ -193,3 +193,30 @@ class SystemUtils:
             subprocess.run(["powershell", "-Command", ps_script], creationflags=subprocess.CREATE_NO_WINDOW)
         except Exception as e:
             print(f"Erro ao enviar notificação: {e}")
+
+    @staticmethod
+    def is_admin():
+        """Verifica se o programa está atualmente com privilégios de administrador."""
+        import ctypes
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+
+    @staticmethod
+    def run_as_admin():
+        """Força o reinício do programa pedindo privilégios de administrador (UAC)."""
+        import ctypes
+        if sys.platform == 'win32':
+            script = os.path.abspath(sys.argv[0])
+            params = ' '.join([f'"{arg}"' for arg in sys.argv[1:]])
+            try:
+                if getattr(sys, 'frozen', False):
+                    # Se for o executável final (PyInstaller)
+                    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, None, 1)
+                else:
+                    # Se for o script rodando via Python
+                    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{script}" {params}', None, 1)
+                sys.exit(0) # Encerra o processo atual (sem privilégios)
+            except Exception as e:
+                print(f"O utilizador recusou a elevação ou ocorreu um erro: {e}")

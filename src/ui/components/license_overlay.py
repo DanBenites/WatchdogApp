@@ -23,7 +23,7 @@ class LicenseOverlay(ctk.CTkFrame):
         lbl_titulo.pack(pady=(20, 5))
         
         lbl_desc = ctk.CTkLabel(self, 
-            text="Sua chave de acesso expirou ou não foi configurada.\nPara continuar monitorando, insira uma nova licença vinculada a esta máquina.",
+            text="Sua chave de acesso expirou ou não foi configurada.\nPara continuar monitorando, renove ou insira uma nova licença",
             font=("Arial", 12),
             text_color=AppColors.WHITE,
             )

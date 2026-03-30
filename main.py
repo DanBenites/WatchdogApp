@@ -1,3 +1,4 @@
+from src.infrastructure.system_utils import SystemUtils
 from src.infrastructure.persistence import PersistenceRepository
 from src.infrastructure.log_manager import LogManager
 from src.infrastructure.icon_manager import IconeManager
@@ -9,6 +10,10 @@ from src.ui.components.tray_handler import TrayHandler
 if __name__ == "__main__":
     # 1. Carregar Dados Essenciais
     config_data = PersistenceRepository.carregar()
+
+    if getattr(config_data, 'executar_como_admin', False):
+        if not SystemUtils.is_admin():
+            SystemUtils.run_as_admin()
     
     # 2. Inicializar Infraestrutura e Serviços
     log_manager = LogManager()
