@@ -167,7 +167,7 @@ class AccountTab(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self.footer, 
-            text="Versão: 1.0.0", 
+            text="Versão: Beta 1.0.1",
             font=("Arial", 11), 
             text_color="gray"
         ).grid(row=0, column=3, padx=10, pady=8, sticky="e")
